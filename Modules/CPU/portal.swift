@@ -48,6 +48,9 @@ public class Portal: PortalWrapper {
     private var splitValueState: Bool {
         Store.shared.bool(key: "\(self.name)_splitValue", defaultValue: false)
     }
+    private var splitPerCoreStyleState: String {
+        Store.shared.string(key: "\(self.name)_splitPerCoreStyle", defaultValue: "cluster")
+    }
     
     public override func load() {
         self.loadColors()
@@ -162,7 +165,9 @@ public class Portal: PortalWrapper {
                    let user = value.usagePerCoreUser,
                    system.count == value.usagePerCore.count,
                    user.count == value.usagePerCore.count {
-                    if let cores = SystemKit.shared.device.info.cpu?.cores, cores.count == value.usagePerCore.count {
+                    if self.splitPerCoreStyleState == "cluster",
+                       let cores = SystemKit.shared.device.info.cpu?.cores,
+                       cores.count == value.usagePerCore.count {
                         usagePerCore = value.usagePerCore.enumerated().map { idx, _ in
                             let baseColor = cores[idx].type == .efficiency ? self.eCoresColor : self.pCoresColor
                             return [ColorValue(system[idx], color: baseColor.withAlphaComponent(0.55)), ColorValue(user[idx], color: baseColor)]

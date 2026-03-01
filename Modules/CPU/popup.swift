@@ -87,6 +87,7 @@ internal class Popup: PopupWrapper {
     private var lineChartHistory: Int = 180
     private var lineChartScale: Scale = .none
     private var lineChartFixedScale: Double = 1
+    private var splitPerCoreStyleState: String = "cluster"
     
     private var systemColorState: SColor = .secondRed
     private var systemColor: NSColor { self.systemColorState.additional as? NSColor ?? NSColor.systemRed }
@@ -142,6 +143,7 @@ internal class Popup: PopupWrapper {
         self.lineChartHistory = Store.shared.int(key: "\(self.title)_lineChartHistory", defaultValue: self.lineChartHistory)
         self.lineChartScale = Scale.fromString(Store.shared.string(key: "\(self.title)_lineChartScale", defaultValue: self.lineChartScale.key))
         self.lineChartFixedScale = Double(Store.shared.int(key: "\(self.title)_lineChartFixedScale", defaultValue: 100)) / 100
+        self.splitPerCoreStyleState = Store.shared.string(key: "\(self.title)_splitPerCoreStyle", defaultValue: self.splitPerCoreStyleState)
         
         self.addArrangedSubview(self.initDashboard())
         self.addArrangedSubview(self.initChart())
@@ -416,7 +418,9 @@ internal class Popup: PopupWrapper {
                    let user = value.usagePerCoreUser,
                    system.count == value.usagePerCore.count,
                    user.count == value.usagePerCore.count {
-                    if let cores = SystemKit.shared.device.info.cpu?.cores, cores.count == value.usagePerCore.count {
+                    if self.splitPerCoreStyleState == "cluster",
+                       let cores = SystemKit.shared.device.info.cpu?.cores,
+                       cores.count == value.usagePerCore.count {
                         usagePerCore = value.usagePerCore.enumerated().map { idx, _ in
                             let baseColor = cores[idx].type == .efficiency ? self.eCoresColor : self.pCoresColor
                             return [ColorValue(system[idx], color: baseColor.withAlphaComponent(0.55)), ColorValue(user[idx], color: baseColor)]
@@ -599,6 +603,17 @@ internal class Popup: PopupWrapper {
             ))
         ]))
         
+        view.addArrangedSubview(PreferencesSection([
+            PreferencesRow(localizedString("Split per-core style"), component: selectView(
+                action: #selector(self.toggleSplitPerCoreStyle),
+                items: [
+                    KeyValue_t(key: "cluster", value: localizedString("By cluster")),
+                    KeyValue_t(key: "systemUser", value: localizedString("By System/User color"))
+                ],
+                selected: self.splitPerCoreStyleState
+            ))
+        ]))
+        
         self.sliderView = sliderView(
             action: #selector(self.toggleLineChartFixedScale),
             value: Int(self.lineChartFixedScale * 100),
@@ -688,6 +703,11 @@ internal class Popup: PopupWrapper {
             self.pCoresColorView?.layer?.backgroundColor = color.cgColor
             self.pCoresFreqColorView?.layer?.backgroundColor = color.cgColor
         }
+    }
+    @objc private func toggleSplitPerCoreStyle(_ sender: NSMenuItem) {
+        guard let key = sender.representedObject as? String else { return }
+        self.splitPerCoreStyleState = key
+        Store.shared.set(key: "\(self.title)_splitPerCoreStyle", value: key)
     }
     @objc private func toggleLineChartHistory(_ sender: NSMenuItem) {
         guard let key = sender.representedObject as? String, let value = Int(key) else { return }
