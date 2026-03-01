@@ -69,6 +69,8 @@ internal class Popup: PopupWrapper {
     private var sliderView: NSView? = nil
     
     private var lineChart: LineChartView? = nil
+    private var splitTotalLineChart: LineChartView? = nil
+    private var splitSystemLineChart: LineChartView? = nil
     private var barChart: BarChartView? = nil
     private var circle: PieChartView? = nil
     private var temperatureCircle: HalfCircleGraphView? = nil
@@ -104,6 +106,9 @@ internal class Popup: PopupWrapper {
     
     private var numberOfProcesses: Int {
         Store.shared.int(key: "\(self.title)_processes", defaultValue: 8)
+    }
+    private var splitValueState: Bool {
+        Store.shared.bool(key: "\(self.title)_splitValue", defaultValue: false)
     }
     private var processesHeight: CGFloat {
         (self.processHeight*CGFloat(self.numberOfProcesses)) + (self.numberOfProcesses == 0 ? 0 : Constants.Popup.separatorHeight + 22)
@@ -153,6 +158,8 @@ internal class Popup: PopupWrapper {
     
     public override func updateLayer() {
         self.lineChart?.display()
+        self.splitTotalLineChart?.display()
+        self.splitSystemLineChart?.display()
     }
     
     public override func appear() {
@@ -228,7 +235,16 @@ internal class Popup: PopupWrapper {
             let chartFrame = NSRect(x: 1, y: 0, width: box.frame.width, height: box.frame.height)
             self.lineChart = LineChartView(frame: chartFrame, num: self.lineChartHistory, scale: self.lineChartScale, fixedScale: self.lineChartFixedScale)
             self.lineChart?.color = self.chartColor
+            self.splitTotalLineChart = LineChartView(frame: chartFrame, num: self.lineChartHistory, scale: self.lineChartScale, fixedScale: self.lineChartFixedScale)
+            self.splitTotalLineChart?.color = self.userColor
+            self.splitTotalLineChart?.isTooltipEnabled = false
+            self.splitSystemLineChart = LineChartView(frame: chartFrame, num: self.lineChartHistory, scale: self.lineChartScale, fixedScale: self.lineChartFixedScale)
+            self.splitSystemLineChart?.color = self.systemColor
+            self.splitSystemLineChart?.isTooltipEnabled = false
             box.addSubview(self.lineChart!)
+            box.addSubview(self.splitTotalLineChart!)
+            box.addSubview(self.splitSystemLineChart!)
+            self.syncUsageHistoryChartMode()
             
             return box
         }()
@@ -260,6 +276,13 @@ internal class Popup: PopupWrapper {
         }
         
         return view
+    }
+    
+    private func syncUsageHistoryChartMode() {
+        let split = self.splitValueState
+        self.lineChart?.isHidden = split
+        self.splitTotalLineChart?.isHidden = !split
+        self.splitSystemLineChart?.isHidden = !split
     }
     
     private func initDetails() -> NSView {
@@ -366,6 +389,7 @@ internal class Popup: PopupWrapper {
     
     public func loadCallback(_ value: CPU_Load) {
         DispatchQueue.main.async(execute: {
+            self.syncUsageHistoryChartMode()
             if (self.window?.isVisible ?? false) || !self.initialized {
                 self.systemField?.stringValue = "\(Int(value.systemLoad.rounded(toPlaces: 2) * 100))%"
                 self.userField?.stringValue = "\(Int(value.userLoad.rounded(toPlaces: 2) * 100))%"
@@ -386,21 +410,37 @@ internal class Popup: PopupWrapper {
                     field.stringValue = "\(Int(usage * 100))%"
                 }
                 
-                var usagePerCore: [ColorValue] = []
-                if let cores = SystemKit.shared.device.info.cpu?.cores, cores.count == value.usagePerCore.count {
-                    for i in 0..<value.usagePerCore.count {
-                        usagePerCore.append(ColorValue(value.usagePerCore[i], color: cores[i].type == .efficiency ? self.eCoresColor : self.pCoresColor))
+                var usagePerCore: [[ColorValue]] = []
+                if self.splitValueState,
+                   let system = value.usagePerCoreSystem,
+                   let user = value.usagePerCoreUser,
+                   system.count == value.usagePerCore.count,
+                   user.count == value.usagePerCore.count {
+                    if let cores = SystemKit.shared.device.info.cpu?.cores, cores.count == value.usagePerCore.count {
+                        usagePerCore = value.usagePerCore.enumerated().map { idx, _ in
+                            let baseColor = cores[idx].type == .efficiency ? self.eCoresColor : self.pCoresColor
+                            return [ColorValue(system[idx], color: baseColor.withAlphaComponent(0.55)), ColorValue(user[idx], color: baseColor)]
+                        }
+                    } else {
+                        usagePerCore = zip(system, user).map {
+                            [ColorValue($0, color: self.systemColor), ColorValue($1, color: self.userColor)]
+                        }
+                    }
+                } else if let cores = SystemKit.shared.device.info.cpu?.cores, cores.count == value.usagePerCore.count {
+                    usagePerCore = value.usagePerCore.enumerated().map { idx, usage in
+                        [ColorValue(usage, color: cores[idx].type == .efficiency ? self.eCoresColor : self.pCoresColor)]
                     }
                 } else {
-                    for i in 0..<value.usagePerCore.count {
-                        usagePerCore.append(ColorValue(value.usagePerCore[i], color: NSColor.systemBlue))
-                    }
+                    usagePerCore = value.usagePerCore.map { [ColorValue($0, color: NSColor.systemBlue)] }
                 }
                 self.barChart?.setValues(usagePerCore)
                 
                 self.initialized = true
             }
             self.lineChart?.addValue(value.totalUsage)
+            // In split mode we stack `system` under `total(system+user)`.
+            self.splitSystemLineChart?.addValue(value.systemLoad)
+            self.splitTotalLineChart?.addValue(value.totalUsage)
         })
     }
     
@@ -595,6 +635,7 @@ internal class Popup: PopupWrapper {
         self.systemColorState = newValue
         Store.shared.set(key: "\(self.title)_systemColor", value: key)
         self.systemColorView?.layer?.backgroundColor = (newValue.additional as? NSColor)?.cgColor
+        self.splitSystemLineChart?.color = self.systemColor
     }
     @objc private func toggleUserColor(_ sender: NSMenuItem) {
         guard let key = sender.representedObject as? String, let newValue = SColor.allColors.first(where: { $0.key == key }) else {
@@ -603,6 +644,7 @@ internal class Popup: PopupWrapper {
         self.userColorState = newValue
         Store.shared.set(key: "\(self.title)_userColor", value: key)
         self.userColorView?.layer?.backgroundColor = (newValue.additional as? NSColor)?.cgColor
+        self.splitTotalLineChart?.color = self.userColor
     }
     @objc private func toggleIdleColor(_ sender: NSMenuItem) {
         guard let key = sender.representedObject as? String, let newValue = SColor.allColors.first(where: { $0.key == key }) else {
@@ -652,6 +694,8 @@ internal class Popup: PopupWrapper {
         self.lineChartHistory = value
         Store.shared.set(key: "\(self.title)_lineChartHistory", value: value)
         self.lineChart?.reinit(self.lineChartHistory)
+        self.splitTotalLineChart?.reinit(self.lineChartHistory)
+        self.splitSystemLineChart?.reinit(self.lineChartHistory)
     }
     @objc private func toggleLineChartScale(_ sender: NSMenuItem) {
         guard let key = sender.representedObject as? String,
@@ -659,6 +703,8 @@ internal class Popup: PopupWrapper {
         self.chartPrefSection?.setRowVisibility(3, newState: value == .fixed)
         self.lineChartScale = value
         self.lineChart?.setScale(self.lineChartScale, fixedScale: self.lineChartFixedScale)
+        self.splitTotalLineChart?.setScale(self.lineChartScale, fixedScale: self.lineChartFixedScale)
+        self.splitSystemLineChart?.setScale(self.lineChartScale, fixedScale: self.lineChartFixedScale)
         Store.shared.set(key: "\(self.title)_lineChartScale", value: key)
         self.display()
     }
@@ -671,6 +717,8 @@ internal class Popup: PopupWrapper {
         
         self.lineChartFixedScale = sender.doubleValue / 100
         self.lineChart?.setScale(self.lineChartScale, fixedScale: self.lineChartFixedScale)
+        self.splitTotalLineChart?.setScale(self.lineChartScale, fixedScale: self.lineChartFixedScale)
+        self.splitSystemLineChart?.setScale(self.lineChartScale, fixedScale: self.lineChartFixedScale)
         Store.shared.set(key: "\(self.title)_lineChartFixedScale", value: value)
     }
 }

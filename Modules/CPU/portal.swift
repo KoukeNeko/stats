@@ -45,6 +45,9 @@ public class Portal: PortalWrapper {
     private var eCoresColor: NSColor { self.eCoresColorState.additional as? NSColor ?? NSColor.systemTeal }
     private var pCoresColorState: SColor = .indigo
     private var pCoresColor: NSColor { self.pCoresColorState.additional as? NSColor ?? NSColor.systemBlue }
+    private var splitValueState: Bool {
+        Store.shared.bool(key: "\(self.name)_splitValue", defaultValue: false)
+    }
     
     public override func load() {
         self.loadColors()
@@ -153,15 +156,28 @@ public class Portal: PortalWrapper {
                     field.stringValue = "\(Int(usage * 100))%"
                 }
                 
-                var usagePerCore: [ColorValue] = []
-                if let cores = SystemKit.shared.device.info.cpu?.cores, cores.count == value.usagePerCore.count {
-                    for i in 0..<value.usagePerCore.count {
-                        usagePerCore.append(ColorValue(value.usagePerCore[i], color: cores[i].type == .efficiency ? self.eCoresColor : self.pCoresColor))
+                var usagePerCore: [[ColorValue]] = []
+                if self.splitValueState,
+                   let system = value.usagePerCoreSystem,
+                   let user = value.usagePerCoreUser,
+                   system.count == value.usagePerCore.count,
+                   user.count == value.usagePerCore.count {
+                    if let cores = SystemKit.shared.device.info.cpu?.cores, cores.count == value.usagePerCore.count {
+                        usagePerCore = value.usagePerCore.enumerated().map { idx, _ in
+                            let baseColor = cores[idx].type == .efficiency ? self.eCoresColor : self.pCoresColor
+                            return [ColorValue(system[idx], color: baseColor.withAlphaComponent(0.55)), ColorValue(user[idx], color: baseColor)]
+                        }
+                    } else {
+                        usagePerCore = zip(system, user).map {
+                            [ColorValue($0, color: self.systemColor), ColorValue($1, color: self.userColor)]
+                        }
+                    }
+                } else if let cores = SystemKit.shared.device.info.cpu?.cores, cores.count == value.usagePerCore.count {
+                    usagePerCore = value.usagePerCore.enumerated().map { idx, usage in
+                        [ColorValue(usage, color: cores[idx].type == .efficiency ? self.eCoresColor : self.pCoresColor)]
                     }
                 } else {
-                    for i in 0..<value.usagePerCore.count {
-                        usagePerCore.append(ColorValue(value.usagePerCore[i], color: NSColor.systemBlue))
-                    }
+                    usagePerCore = value.usagePerCore.map { [ColorValue($0, color: NSColor.systemBlue)] }
                 }
                 self.barChart?.setValues(usagePerCore)
                 

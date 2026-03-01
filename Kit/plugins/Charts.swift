@@ -818,13 +818,13 @@ internal class TachometerGraphView: NSView {
 }
 
 public class BarChartView: NSView {
-    private var values: [ColorValue] = []
+    private var values: [[ColorValue]] = []
     private var cursor: CGPoint? = nil
     private var queue: DispatchQueue = DispatchQueue(label: "eu.exelban.Stats.charts.bar")
     
     public init(frame: NSRect = NSRect.zero, num: Int) {
         super.init(frame: frame)
-        self.values = Array(repeating: ColorValue(0, color: .controlAccentColor), count: num)
+        self.values = Array(repeating: [ColorValue(0, color: .controlAccentColor)], count: num)
         
         self.addTrackingArea(NSTrackingArea(
             rect: CGRect(x: 0, y: 0, width: self.frame.width, height: self.frame.height),
@@ -842,7 +842,7 @@ public class BarChartView: NSView {
     }
     
     public override func draw(_ dirtyRect: NSRect) {
-        var values: [ColorValue] = []
+        var values: [[ColorValue]] = []
         self.queue.sync {
             values = self.values
         }
@@ -868,27 +868,51 @@ public class BarChartView: NSView {
             partition.fill()
             partition.close()
             
-            let value = values[i]
-            let color = value.color ?? .controlAccentColor
-            let activeBlockNum = Int(round(value.value*Double(blocks)))
-            let h = value.value*(partitionSize.height-spacing)
+            let stack = values[i]
+            let totalValue = stack.reduce(0) { partialResult, item in
+                partialResult + max(item.value, 0)
+            }
+            let activeBlockNum = Int(round(totalValue*Double(blocks)))
+            let h = totalValue*(partitionSize.height-spacing)
             
             if dirtyRect.height < 30 && h != 0 {
-                let block = NSBezierPath(
-                    roundedRect: NSRect(x: x+spacing, y: 1, width: partitionSize.width-(spacing*2), height: h),
-                    xRadius: 1, yRadius: 1
-                )
-                color.setFill()
-                block.fill()
-                block.close()
+                var y: CGFloat = 1
+                for segment in stack {
+                    guard segment.value > 0 else { continue }
+                    let block = NSBezierPath(
+                        roundedRect: NSRect(
+                            x: x+spacing,
+                            y: y,
+                            width: partitionSize.width-(spacing*2),
+                            height: segment.value*(partitionSize.height-spacing)
+                        ),
+                        xRadius: 1, yRadius: 1
+                    )
+                    (segment.color ?? .controlAccentColor).setFill()
+                    block.fill()
+                    block.close()
+                    y += segment.value*(partitionSize.height-spacing)
+                }
             } else {
                 var y: CGFloat = spacing
                 for b in 0..<blocks {
+                    let level = Double(b + 1) / Double(blocks)
+                    var filledColor: NSColor = NSColor.controlBackgroundColor.withAlphaComponent(0.4)
+                    if activeBlockNum > b {
+                        var cumulative: Double = 0
+                        for segment in stack {
+                            cumulative += max(segment.value, 0)
+                            if level <= cumulative {
+                                filledColor = segment.color ?? .controlAccentColor
+                                break
+                            }
+                        }
+                    }
                     let block = NSBezierPath(
                         roundedRect: NSRect(x: x+spacing, y: y, width: blockSize.width, height: blockSize.height),
                         xRadius: 1, yRadius: 1
                     )
-                    (activeBlockNum <= b ? NSColor.controlBackgroundColor.withAlphaComponent(0.4) : color).setFill()
+                    filledColor.setFill()
                     block.fill()
                     block.close()
                     y += blockSize.height + 1
@@ -896,7 +920,7 @@ public class BarChartView: NSView {
             }
             
             x += partitionSize.width + spacing
-            list.append((value: value.value, path: partition))
+            list.append((value: totalValue, path: partition))
         }
         
         if let p = self.cursor {
@@ -912,6 +936,10 @@ public class BarChartView: NSView {
     }
     
     public func setValues(_ values: [ColorValue]) {
+        self.setValues(values.map { [$0] })
+    }
+    
+    public func setValues(_ values: [[ColorValue]]) {
         self.queue.async(flags: .barrier) {
             self.values = values
         }
