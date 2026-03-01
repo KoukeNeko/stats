@@ -128,6 +128,7 @@ public class LineChartView: NSView {
     public var points: [DoubleValue?]
     public var shadowPoints: [DoubleValue?] = []
     public var transparent: Bool = true
+    public var solidColorFill: Bool = false
     public var flipY: Bool = false
     public var minMax: Bool = false
     public var color: NSColor
@@ -175,6 +176,7 @@ public class LineChartView: NSView {
         var originalPoints: [DoubleValue?] = []
         var shadowPoints: [DoubleValue?] = []
         var transparent: Bool = true
+        var solidColorFill: Bool = false
         var flipY: Bool = false
         var minMax: Bool = false
         var color: NSColor = .controlAccentColor
@@ -185,6 +187,7 @@ public class LineChartView: NSView {
             originalPoints = self.points
             shadowPoints = self.shadowPoints
             transparent = self.transparent
+            solidColorFill = self.solidColorFill
             flipY = self.flipY
             minMax = self.minMax
             color = self.color
@@ -199,14 +202,19 @@ public class LineChartView: NSView {
         let maxValue = points.compactMap { $0 }.max() ?? 0
         
         let lineColor: NSColor = color
-        var gradientColor: NSColor = color.withAlphaComponent(0.5)
-        if !transparent {
-            gradientColor = color.withAlphaComponent(0.8)
+        var fillColor: NSColor = color.withAlphaComponent(0.5)
+        var gradient: NSGradient? = nil
+        if solidColorFill {
+            fillColor = color
+        } else {
+            if !transparent {
+                fillColor = color.withAlphaComponent(0.8)
+            }
+            gradient = NSGradient(colors: [
+                fillColor.withAlphaComponent(0.5),
+                fillColor.withAlphaComponent(1.0)
+            ])
         }
-        let gradient = NSGradient(colors: [
-            gradientColor.withAlphaComponent(0.5),
-            gradientColor.withAlphaComponent(1.0)
-        ])
         
         let offset: CGFloat = 1 / (NSScreen.main?.backingScaleFactor ?? 1)
         let height: CGFloat = self.frame.height - offset
@@ -248,7 +256,7 @@ public class LineChartView: NSView {
                 path = NSBezierPath(ovalIn: CGRect(x: linePoints[0].x-offset, y: linePoints[0].y-offset, width: 1, height: 1))
                 lineColor.set()
                 path.stroke()
-                gradientColor.set()
+                fillColor.set()
                 path.fill()
                 continue
             }
@@ -269,7 +277,7 @@ public class LineChartView: NSView {
             if let gradient {
                 gradient.draw(in: path, angle: 90)
             } else {
-                gradientColor.set()
+                fillColor.set()
                 path.fill()
             }
         }

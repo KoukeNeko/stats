@@ -36,6 +36,9 @@ internal class Popup: PopupWrapper {
     private var sliderView: NSView? = nil
     
     private var chart: LineChartView? = nil
+    private var splitCompressedChart: LineChartView? = nil
+    private var splitWiredChart: LineChartView? = nil
+    private var splitAppChart: LineChartView? = nil
     private var circle: PieChartView? = nil
     private var level: PressureView? = nil
     private var initialized: Bool = false
@@ -45,6 +48,14 @@ internal class Popup: PopupWrapper {
     
     private var numberOfProcesses: Int {
         Store.shared.int(key: "\(self.title)_processes", defaultValue: 8)
+    }
+    private var splitValueState: Bool {
+        let popupKey = "\(self.title)_popupSplitValue"
+        if Store.shared.exist(key: popupKey) {
+            return Store.shared.bool(key: popupKey, defaultValue: false)
+        }
+        // Backward-compatible initial value from the old shared key.
+        return Store.shared.bool(key: "\(self.title)_splitValue", defaultValue: false)
     }
     private var processesHeight: CGFloat {
         (self.processHeight*CGFloat(self.numberOfProcesses)) + (self.numberOfProcesses == 0 ? 0 : Constants.Popup.separatorHeight + 22)
@@ -107,6 +118,9 @@ internal class Popup: PopupWrapper {
     
     public override func updateLayer() {
         self.chart?.display()
+        self.splitCompressedChart?.display()
+        self.splitWiredChart?.display()
+        self.splitAppChart?.display()
     }
     
     public override func disappear() {
@@ -167,12 +181,39 @@ internal class Popup: PopupWrapper {
         let chartFrame = NSRect(x: 1, y: 0, width: view.frame.width, height: container.frame.height)
         self.chart = LineChartView(frame: chartFrame, num: self.lineChartHistory, scale: self.lineChartScale, fixedScale: self.lineChartFixedScale)
         self.chart?.color = self.chartColor
+        self.splitCompressedChart = LineChartView(frame: chartFrame, num: self.lineChartHistory, scale: self.lineChartScale, fixedScale: self.lineChartFixedScale)
+        self.splitCompressedChart?.color = self.compressedColor
+        self.splitCompressedChart?.transparent = false
+        self.splitCompressedChart?.solidColorFill = true
+        self.splitCompressedChart?.isTooltipEnabled = false
+        self.splitWiredChart = LineChartView(frame: chartFrame, num: self.lineChartHistory, scale: self.lineChartScale, fixedScale: self.lineChartFixedScale)
+        self.splitWiredChart?.color = self.wiredColor
+        self.splitWiredChart?.transparent = false
+        self.splitWiredChart?.solidColorFill = true
+        self.splitWiredChart?.isTooltipEnabled = false
+        self.splitAppChart = LineChartView(frame: chartFrame, num: self.lineChartHistory, scale: self.lineChartScale, fixedScale: self.lineChartFixedScale)
+        self.splitAppChart?.color = self.appColor
+        self.splitAppChart?.transparent = false
+        self.splitAppChart?.solidColorFill = true
+        self.splitAppChart?.isTooltipEnabled = false
         container.addSubview(self.chart!)
+        container.addSubview(self.splitCompressedChart!)
+        container.addSubview(self.splitWiredChart!)
+        container.addSubview(self.splitAppChart!)
+        self.syncUsageHistoryChartMode()
         
         view.addSubview(separator)
         view.addSubview(container)
         
         return view
+    }
+    
+    private func syncUsageHistoryChartMode() {
+        let split = self.splitValueState
+        self.chart?.isHidden = split
+        self.splitCompressedChart?.isHidden = !split
+        self.splitWiredChart?.isHidden = !split
+        self.splitAppChart?.isHidden = !split
     }
     
     private func initDetails() -> NSView  {
@@ -236,6 +277,7 @@ internal class Popup: PopupWrapper {
     
     public func loadCallback(_ value: RAM_Usage) {
         DispatchQueue.main.async(execute: {
+            self.syncUsageHistoryChartMode()
             if (self.window?.isVisible ?? false) || !self.initialized {
                 self.appField?.stringValue = Units(bytes: Int64(value.app)).getReadableMemory(style: .memory)
                 self.inactiveField?.stringValue = Units(bytes: Int64(value.inactive)).getReadableMemory(style: .memory)
@@ -260,6 +302,11 @@ internal class Popup: PopupWrapper {
                 self.initialized = true
             }
             self.chart?.addValue(value.usage)
+            
+            let total = value.total == 0 ? 1 : value.total
+            self.splitAppChart?.addValue(value.app / total)
+            self.splitWiredChart?.addValue((value.app + value.wired) / total)
+            self.splitCompressedChart?.addValue((value.app + value.wired + value.compressed) / total)
         })
     }
     
@@ -289,6 +336,13 @@ internal class Popup: PopupWrapper {
             PreferencesRow(localizedString("Keyboard shortcut"), component: KeyboardShartcutView(
                 callback: self.setKeyboardShortcut,
                 value: self.keyboardShortcut
+            ))
+        ]))
+        
+        view.addArrangedSubview(PreferencesSection([
+            PreferencesRow(localizedString("Split popup history (App/Wired/Compressed)"), component: switchView(
+                action: #selector(self.toggleSplitValue),
+                state: self.splitValueState
             ))
         ]))
         
@@ -353,6 +407,7 @@ internal class Popup: PopupWrapper {
         Store.shared.set(key: "\(self.title)_appColor", value: key)
         if let color = newValue.additional as? NSColor {
             self.appColorView?.layer?.backgroundColor = color.cgColor
+            self.splitAppChart?.color = color
         }
     }
     @objc private func toggleWiredColor(_ sender: NSMenuItem) {
@@ -364,6 +419,7 @@ internal class Popup: PopupWrapper {
         Store.shared.set(key: "\(self.title)_wiredColor", value: key)
         if let color = newValue.additional as? NSColor {
             self.wiredColorView?.layer?.backgroundColor = color.cgColor
+            self.splitWiredChart?.color = color
         }
     }
     @objc private func toggleCompressedColor(_ sender: NSMenuItem) {
@@ -375,6 +431,7 @@ internal class Popup: PopupWrapper {
         Store.shared.set(key: "\(self.title)_compressedColor", value: key)
         if let color = newValue.additional as? NSColor {
             self.compressedColorView?.layer?.backgroundColor = color.cgColor
+            self.splitCompressedChart?.color = color
         }
     }
     @objc private func toggleFreeColor(_ sender: NSMenuItem) {
@@ -404,6 +461,9 @@ internal class Popup: PopupWrapper {
         self.lineChartHistory = value
         Store.shared.set(key: "\(self.title)_lineChartHistory", value: value)
         self.chart?.reinit(self.lineChartHistory)
+        self.splitCompressedChart?.reinit(self.lineChartHistory)
+        self.splitWiredChart?.reinit(self.lineChartHistory)
+        self.splitAppChart?.reinit(self.lineChartHistory)
     }
     @objc private func toggleLineChartScale(_ sender: NSMenuItem) {
         guard let key = sender.representedObject as? String,
@@ -411,6 +471,9 @@ internal class Popup: PopupWrapper {
         self.chartPrefSection?.setRowVisibility(3, newState: value == .fixed)
         self.lineChartScale = value
         self.chart?.setScale(self.lineChartScale, fixedScale: self.lineChartFixedScale)
+        self.splitCompressedChart?.setScale(self.lineChartScale, fixedScale: self.lineChartFixedScale)
+        self.splitWiredChart?.setScale(self.lineChartScale, fixedScale: self.lineChartFixedScale)
+        self.splitAppChart?.setScale(self.lineChartScale, fixedScale: self.lineChartFixedScale)
         Store.shared.set(key: "\(self.title)_lineChartScale", value: key)
         self.display()
     }
@@ -423,7 +486,15 @@ internal class Popup: PopupWrapper {
         
         self.lineChartFixedScale = sender.doubleValue / 100
         self.chart?.setScale(self.lineChartScale, fixedScale: self.lineChartFixedScale)
+        self.splitCompressedChart?.setScale(self.lineChartScale, fixedScale: self.lineChartFixedScale)
+        self.splitWiredChart?.setScale(self.lineChartScale, fixedScale: self.lineChartFixedScale)
+        self.splitAppChart?.setScale(self.lineChartScale, fixedScale: self.lineChartFixedScale)
         Store.shared.set(key: "\(self.title)_lineChartFixedScale", value: value)
+    }
+    @objc private func toggleSplitValue(_ sender: NSControl) {
+        Store.shared.set(key: "\(self.title)_popupSplitValue", value: controlState(sender))
+        self.syncUsageHistoryChartMode()
+        self.display()
     }
 }
 
