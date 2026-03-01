@@ -38,6 +38,13 @@ Stats is an application that allows you to monitor your macOS system.
  - Bluetooth devices
  - Multiple time zone clock
 
+### RAM popup improvements (personal build)
+- Optional split memory history in popup charts (Application / Wired / Compressed).
+- Popup settings are independent from menu bar widget settings.
+- Added a swap usage gauge to the right side of RAM popup dashboard (used vs swap occupied).
+- Swap gauge is always visible, even when the system reports zero available swap.
+- Fixed lower-edge glow artifacts in split history chart rendering.
+
 ## FAQs
 
 ### How do you change the order of the menu bar icons?
