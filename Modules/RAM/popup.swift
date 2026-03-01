@@ -42,6 +42,7 @@ internal class Popup: PopupWrapper {
     private var circle: PieChartView? = nil
     private var level: PressureView? = nil
     private var swapCircle: HalfCircleGraphView? = nil
+    private var latestUsage: RAM_Usage? = nil
     private var initialized: Bool = false
     private var processesInitialized: Bool = false
     
@@ -126,6 +127,13 @@ internal class Popup: PopupWrapper {
     
     public override func disappear() {
         self.processes?.setLock(false)
+    }
+
+    public override func appear() {
+        self.syncUsageHistoryChartMode()
+        if let value = self.latestUsage {
+            self.updateUsageView(value)
+        }
     }
     
     public func numberOfProcessesUpdated() {
@@ -290,48 +298,10 @@ internal class Popup: PopupWrapper {
     
     public func loadCallback(_ value: RAM_Usage) {
         DispatchQueue.main.async(execute: {
+            self.latestUsage = value
             self.syncUsageHistoryChartMode()
             if (self.window?.isVisible ?? false) || !self.initialized {
-                self.appField?.stringValue = Units(bytes: Int64(value.app)).getReadableMemory(style: .memory)
-                self.inactiveField?.stringValue = Units(bytes: Int64(value.inactive)).getReadableMemory(style: .memory)
-                self.wiredField?.stringValue = Units(bytes: Int64(value.wired)).getReadableMemory(style: .memory)
-                self.compressedField?.stringValue = Units(bytes: Int64(value.compressed)).getReadableMemory(style: .memory)
-                self.swapField?.stringValue = Units(bytes: Int64(value.swap.used)).getReadableMemory(style: .memory)
-                
-                self.usedField?.stringValue = Units(bytes: Int64(value.used)).getReadableMemory(style: .memory)
-                self.freeField?.stringValue = Units(bytes: Int64(value.free)).getReadableMemory(style: .memory)
-                
-                self.circle?.toolTip = "\(localizedString("Memory usage")): \(Int(value.usage*100))%"
-                self.circle?.setValue(value.usage)
-                self.circle?.setSegments([
-                    circle_segment(value: value.app/value.total, color: self.appColor),
-                    circle_segment(value: value.wired/value.total, color: self.wiredColor),
-                    circle_segment(value: value.compressed/value.total, color: self.compressedColor)
-                ])
-                self.circle?.setNonActiveSegmentColor(self.freeColor)
-                self.level?.setValue(value.pressure)
-                self.level?.toolTip = "\(localizedString("Memory pressure")): \(value.pressure.value.rawValue)"
-                
-                if let swapCircle = self.swapCircle {
-                    if value.swap.total > 0 {
-                        let ratio = min(max(value.swap.used / value.swap.total, 0), 1)
-                        let percent = Int((ratio * 100).rounded())
-                        swapCircle.setValue(ratio)
-                        swapCircle.setText("\(percent)")
-                        let used = Units(bytes: Int64(value.swap.used)).getReadableMemory(style: .memory)
-                        let total = Units(bytes: Int64(value.swap.total)).getReadableMemory(style: .memory)
-                        swapCircle.toolTip = "\(localizedString("Swap usage")): \(used)/\(total) (\(percent)%)"
-                    } else {
-                        swapCircle.setValue(0)
-                        swapCircle.setText("0")
-                        swapCircle.toolTip = "\(localizedString("Swap usage")): 0%"
-                    }
-                    if swapCircle.isHidden {
-                        swapCircle.isHidden = false
-                    }
-                }
-                
-                self.initialized = true
+                self.updateUsageView(value)
             }
             self.chart?.addValue(value.usage)
             
@@ -340,6 +310,49 @@ internal class Popup: PopupWrapper {
             self.splitWiredChart?.addValue((value.app + value.wired) / total)
             self.splitCompressedChart?.addValue((value.app + value.wired + value.compressed) / total)
         })
+    }
+
+    private func updateUsageView(_ value: RAM_Usage) {
+        self.appField?.stringValue = Units(bytes: Int64(value.app)).getReadableMemory(style: .memory)
+        self.inactiveField?.stringValue = Units(bytes: Int64(value.inactive)).getReadableMemory(style: .memory)
+        self.wiredField?.stringValue = Units(bytes: Int64(value.wired)).getReadableMemory(style: .memory)
+        self.compressedField?.stringValue = Units(bytes: Int64(value.compressed)).getReadableMemory(style: .memory)
+        self.swapField?.stringValue = Units(bytes: Int64(value.swap.used)).getReadableMemory(style: .memory)
+        
+        self.usedField?.stringValue = Units(bytes: Int64(value.used)).getReadableMemory(style: .memory)
+        self.freeField?.stringValue = Units(bytes: Int64(value.free)).getReadableMemory(style: .memory)
+        
+        self.circle?.toolTip = "\(localizedString("Memory usage")): \(Int(value.usage*100))%"
+        self.circle?.setValue(value.usage)
+        self.circle?.setSegments([
+            circle_segment(value: value.app/value.total, color: self.appColor),
+            circle_segment(value: value.wired/value.total, color: self.wiredColor),
+            circle_segment(value: value.compressed/value.total, color: self.compressedColor)
+        ])
+        self.circle?.setNonActiveSegmentColor(self.freeColor)
+        self.level?.setValue(value.pressure)
+        self.level?.toolTip = "\(localizedString("Memory pressure")): \(value.pressure.value.rawValue)"
+        
+        if let swapCircle = self.swapCircle {
+            if value.swap.total > 0 {
+                let ratio = min(max(value.swap.used / value.swap.total, 0), 1)
+                let percent = Int((ratio * 100).rounded())
+                swapCircle.setValue(ratio)
+                swapCircle.setText("\(percent)")
+                let used = Units(bytes: Int64(value.swap.used)).getReadableMemory(style: .memory)
+                let total = Units(bytes: Int64(value.swap.total)).getReadableMemory(style: .memory)
+                swapCircle.toolTip = "\(localizedString("Swap usage")): \(used)/\(total) (\(percent)%)"
+            } else {
+                swapCircle.setValue(0)
+                swapCircle.setText("0")
+                swapCircle.toolTip = "\(localizedString("Swap usage")): 0%"
+            }
+            if swapCircle.isHidden {
+                swapCircle.isHidden = false
+            }
+        }
+        
+        self.initialized = true
     }
     
     public func processCallback(_ list: [TopProcess]) {
