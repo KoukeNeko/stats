@@ -45,6 +45,12 @@ Stats is an application that allows you to monitor your macOS system.
 - Swap gauge is always visible, even when the system reports zero available swap.
 - Fixed lower-edge glow artifacts in split history chart rendering.
 
+### CPU popup improvements (personal build)
+- Added optional System/User split mode for CPU values.
+- CPU usage history now supports split rendering (stacked system under total).
+- Per-core bars support split rendering with configurable style: By cluster (keeps E-core / P-core distinction with layered color intensity) or By System/User color (uses global System and User colors).
+- Added dedicated popup color controls for System/User/Idle and E-core/P-core colors.
+
 ## FAQs
 
 ### How do you change the order of the menu bar icons?
