@@ -39,6 +39,8 @@ Stats is an application that allows you to monitor your macOS system.
  - Multiple time zone clock
 
 ### RAM popup improvements (personal build)
+<img width="392" height="924" alt="image" src="https://github.com/user-attachments/assets/f8d41e6a-5082-4b58-b49b-aa4cef359b93" />
+
 - Optional split memory history in popup charts (Application / Wired / Compressed).
 - Popup settings are independent from menu bar widget settings.
 - Added a swap usage gauge to the right side of RAM popup dashboard (used vs swap occupied).
@@ -46,6 +48,8 @@ Stats is an application that allows you to monitor your macOS system.
 - Fixed lower-edge glow artifacts in split history chart rendering.
 
 ### CPU popup improvements (personal build)
+<img width="392" height="1146" alt="image" src="https://github.com/user-attachments/assets/cae89f24-85f9-4371-8e81-da5dc920936a" />
+
 - Added optional System/User split mode for CPU values.
 - CPU usage history now supports split rendering (stacked system under total).
 - Per-core bars support split rendering with configurable style: By cluster (keeps E-core / P-core distinction with layered color intensity) or By System/User color (uses global System and User colors).
