@@ -421,7 +421,7 @@ internal class Popup: PopupWrapper {
                     if self.splitPerCoreStyleState == "cluster",
                        let cores = SystemKit.shared.device.info.cpu?.cores,
                        cores.count == value.usagePerCore.count {
-                        usagePerCore = value.usagePerCore.enumerated().map { idx, _ in
+                        usagePerCore = value.usagePerCore.indices.map { idx in
                             let baseColor = cores[idx].type == .efficiency ? self.eCoresColor : self.pCoresColor
                             return [ColorValue(system[idx], color: baseColor.withAlphaComponent(0.55)), ColorValue(user[idx], color: baseColor)]
                         }
