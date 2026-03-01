@@ -127,6 +127,10 @@ open class Reader<T: Codable>: NSObject, ReaderInternal_p {
             }
             return
         }
+
+        // Refresh immediately when resuming from pause to avoid showing stale values
+        // until the next scheduled interval tick.
+        let shouldReadImmediately = !self.initlizalized || (self.repeatTask != nil && !self.active)
         
         if let interval = self.interval, self.repeatTask == nil {
             if !self.popup && !self.optional {
@@ -138,7 +142,7 @@ open class Reader<T: Codable>: NSObject, ReaderInternal_p {
             }
         }
         
-        if !self.initlizalized {
+        if shouldReadImmediately {
             DispatchQueue.global(qos: .background).async {
                 self.read()
             }

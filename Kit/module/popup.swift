@@ -127,7 +127,11 @@ internal class PopupViewController: NSViewController {
         super.viewWillAppear()
         
         self.popup.appear()
-        self.visibilityCallback(true)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            guard self.view.window?.isVisible ?? false else { return }
+            self.visibilityCallback(true)
+        }
     }
     
     override func viewWillDisappear() {
