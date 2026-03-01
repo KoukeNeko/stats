@@ -13,6 +13,8 @@ import WidgetKit
 public struct CPU_Load: Codable, RemoteType {
     public var totalUsage: Double = 0
     var usagePerCore: [Double] = []
+    var usagePerCoreSystem: [Double]? = nil
+    var usagePerCoreUser: [Double]? = nil
     var usageECores: Double? = nil
     var usagePCores: Double? = nil
     
@@ -198,7 +200,26 @@ public class CPU: Module {
                 let cores = SystemKit.shared.device.info.cpu?.cores ?? []
                 
                 if self.usagePerCoreState {
-                    if widget.colorState == .cluster {
+                    if self.splitValueState,
+                       let system = value.usagePerCoreSystem,
+                       let user = value.usagePerCoreUser,
+                       system.count == value.usagePerCore.count,
+                       user.count == value.usagePerCore.count {
+                        if widget.colorState == .cluster {
+                            val = value.usagePerCore.enumerated().map { (i, _) in
+                                let core = cores.first(where: { $0.id == i })
+                                let baseColor = core?.type == .efficiency ? self.eCoreColor : self.pCoreColor
+                                return [
+                                    ColorValue(system[i], color: baseColor.withAlphaComponent(0.55)),
+                                    ColorValue(user[i], color: baseColor)
+                                ]
+                            }
+                        } else {
+                            val = zip(system, user).map {
+                                [ColorValue($0, color: self.systemColor), ColorValue($1, color: self.userColor)]
+                            }
+                        }
+                    } else if widget.colorState == .cluster {
                         val = []
                         for (i, v) in value.usagePerCore.enumerated() {
                             let core = cores.first(where: {$0.id == i })

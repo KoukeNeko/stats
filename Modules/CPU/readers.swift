@@ -25,6 +25,8 @@ internal class LoadReader: Reader<CPU_Load> {
     private var response: CPU_Load = CPU_Load()
     private var numCPUsU: natural_t = 0
     private var usagePerCore: [Double] = []
+    private var usagePerCoreSystem: [Double] = []
+    private var usagePerCoreUser: [Double] = []
     private var cores: [core_s]? = nil
     
     public override func setup() {
@@ -44,28 +46,38 @@ internal class LoadReader: Reader<CPU_Load> {
         if result == KERN_SUCCESS {
             self.CPUUsageLock.lock()
             self.usagePerCore = []
+            self.usagePerCoreSystem = []
+            self.usagePerCoreUser = []
             
             for i in 0 ..< Int32(numCPUs) {
-                var inUse: Int32
-                var total: Int32
+                var userTicks: Int32
+                var systemTicks: Int32
+                var niceTicks: Int32
+                var idleTicks: Int32
                 if let prevCpuInfo = self.prevCpuInfo {
-                    inUse = self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_USER)]
+                    userTicks = self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_USER)]
                         - prevCpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_USER)]
-                        + self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_SYSTEM)]
+                    systemTicks = self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_SYSTEM)]
                         - prevCpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_SYSTEM)]
-                        + self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_NICE)]
+                    niceTicks = self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_NICE)]
                         - prevCpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_NICE)]
-                    total = inUse + (self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_IDLE)]
-                        - prevCpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_IDLE)])
+                    idleTicks = self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_IDLE)]
+                        - prevCpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_IDLE)]
                 } else {
-                    inUse = self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_USER)]
-                        + self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_SYSTEM)]
-                        + self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_NICE)]
-                    total = inUse + self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_IDLE)]
+                    userTicks = self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_USER)]
+                    systemTicks = self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_SYSTEM)]
+                    niceTicks = self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_NICE)]
+                    idleTicks = self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_IDLE)]
                 }
                 
+                let inUse = userTicks + systemTicks + niceTicks
+                let total = inUse + idleTicks
                 if total != 0 {
-                    self.usagePerCore.append(Double(inUse) / Double(total))
+                    let systemUsage = Double(systemTicks) / Double(total)
+                    let userUsage = Double(userTicks + niceTicks) / Double(total)
+                    self.usagePerCoreSystem.append(systemUsage)
+                    self.usagePerCoreUser.append(userUsage)
+                    self.usagePerCore.append(systemUsage + userUsage)
                 }
             }
             self.CPUUsageLock.unlock()
@@ -73,15 +85,25 @@ internal class LoadReader: Reader<CPU_Load> {
             let showHyperthratedCores = Store.shared.bool(key: "CPU_hyperhreading", defaultValue: false)
             if showHyperthratedCores || !self.hasHyperthreadingCores {
                 self.response.usagePerCore = self.usagePerCore
+                self.response.usagePerCoreSystem = self.usagePerCoreSystem
+                self.response.usagePerCoreUser = self.usagePerCoreUser
             } else {
                 var i = 0
                 var a = 0
                 
                 self.response.usagePerCore = []
+                self.response.usagePerCoreSystem = []
+                self.response.usagePerCoreUser = []
                 while i < Int(self.usagePerCore.count/2) {
                     a = i*2
                     if self.usagePerCore.indices.contains(a) && self.usagePerCore.indices.contains(a+1) {
                         self.response.usagePerCore.append((Double(self.usagePerCore[a]) + Double(self.usagePerCore[a+1])) / 2)
+                    }
+                    if self.usagePerCoreSystem.indices.contains(a) && self.usagePerCoreSystem.indices.contains(a+1) {
+                        self.response.usagePerCoreSystem?.append((Double(self.usagePerCoreSystem[a]) + Double(self.usagePerCoreSystem[a+1])) / 2)
+                    }
+                    if self.usagePerCoreUser.indices.contains(a) && self.usagePerCoreUser.indices.contains(a+1) {
+                        self.response.usagePerCoreUser?.append((Double(self.usagePerCoreUser[a]) + Double(self.usagePerCoreUser[a+1])) / 2)
                     }
                     i += 1
                 }
