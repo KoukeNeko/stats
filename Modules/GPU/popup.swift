@@ -73,6 +73,11 @@ private class GPUView: NSStackView {
     private var detailsView: GPUDetails
     private let circleSize: CGFloat = 50
     private let chartSize: CGFloat = 60
+
+    private var detailsState: Bool {
+        get { Store.shared.bool(key: "\(ModuleType.GPU.stringValue)_\(self.value.id)_details", defaultValue: false) }
+        set { Store.shared.set(key: "\(ModuleType.GPU.stringValue)_\(self.value.id)_details", value: newValue) }
+    }
     
     private var stateView: NSView? = nil
     private var circleRow: NSStackView? = nil
@@ -106,6 +111,10 @@ private class GPUView: NSStackView {
         self.addArrangedSubview(self.title())
         self.addArrangedSubview(self.stats())
         self.addArrangedSubview(NSView())
+
+        if self.detailsState {
+            self.insertArrangedSubview(self.detailsView, at: 1)
+        }
         
         let h = self.arrangedSubviews.map({ $0.bounds.height }).reduce(0, +)
         self.setFrameSize(NSSize(width: self.frame.width, height: h))
@@ -307,6 +316,8 @@ private class GPUView: NSStackView {
     }
     
     @objc private func showDetails() {
+        self.detailsState = !self.detailsState
+
         if let view = self.arrangedSubviews.first(where: { $0 is GPUDetails }) {
             view.removeFromSuperview()
         } else {
