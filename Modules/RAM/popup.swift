@@ -41,6 +41,7 @@ internal class Popup: PopupWrapper {
     private var splitAppChart: LineChartView? = nil
     private var circle: PieChartView? = nil
     private var level: PressureView? = nil
+    private var swapCircle: HalfCircleGraphView? = nil
     private var initialized: Bool = false
     private var processesInitialized: Bool = false
     
@@ -164,8 +165,20 @@ internal class Popup: PopupWrapper {
         self.level = PressureView(frame: NSRect(x: (sideWidth - 60)/2, y: 10, width: 60, height: 50))
         self.level!.toolTip = localizedString("Memory pressure")
         
+        let swapView: NSView = NSView(frame: NSRect(
+            x: sideWidth + centralWidth + Constants.Popup.margins + (sideWidth - 50)/2,
+            y: 10,
+            width: 50,
+            height: 50
+        ))
+        self.swapCircle = HalfCircleGraphView(frame: NSRect(x: 0, y: 0, width: swapView.frame.width, height: swapView.frame.height))
+        self.swapCircle!.toolTip = localizedString("Swap usage")
+        self.swapCircle!.setText("0")
+        swapView.addSubview(self.swapCircle!)
+        
         view.addSubview(self.level!)
         view.addSubview(container)
+        view.addSubview(swapView)
         
         return view
     }
@@ -298,6 +311,25 @@ internal class Popup: PopupWrapper {
                 self.circle?.setNonActiveSegmentColor(self.freeColor)
                 self.level?.setValue(value.pressure)
                 self.level?.toolTip = "\(localizedString("Memory pressure")): \(value.pressure.value.rawValue)"
+                
+                if let swapCircle = self.swapCircle {
+                    if value.swap.total > 0 {
+                        let ratio = min(max(value.swap.used / value.swap.total, 0), 1)
+                        let percent = Int((ratio * 100).rounded())
+                        swapCircle.setValue(ratio)
+                        swapCircle.setText("\(percent)")
+                        let used = Units(bytes: Int64(value.swap.used)).getReadableMemory(style: .memory)
+                        let total = Units(bytes: Int64(value.swap.total)).getReadableMemory(style: .memory)
+                        swapCircle.toolTip = "\(localizedString("Swap usage")): \(used)/\(total) (\(percent)%)"
+                    } else {
+                        swapCircle.setValue(0)
+                        swapCircle.setText("0")
+                        swapCircle.toolTip = "\(localizedString("Swap usage")): 0%"
+                    }
+                    if swapCircle.isHidden {
+                        swapCircle.isHidden = false
+                    }
+                }
                 
                 self.initialized = true
             }
