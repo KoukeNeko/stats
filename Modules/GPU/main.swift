@@ -37,9 +37,29 @@ public struct GPU_Info: Codable {
     public var coreClock: Int? = nil
     public var memoryClock: Int? = nil
     public var temperature: Double? = nil
+    public var power: Double? = nil
     public var utilization: Double? = nil
     public var renderUtilization: Double? = nil
     public var tilerUtilization: Double? = nil
+    public var encodeUtilization: Double? = nil
+    public var decodeUtilization: Double? = nil
+    public var blitUtilization: Double? = nil
+    public var computeUtilization: Double? = nil
+    public var memoryUsed: Int64? = nil
+    public var memoryAllocated: Int64? = nil
+    public var memoryTotal: Int64? = nil
+    public var throttling: Bool? = nil
+
+    public var memoryUtilization: Double? {
+        guard let total = self.memoryTotal, total > 0 else { return nil }
+        if let used = self.memoryUsed {
+            return min(max(Double(used) / Double(total), 0), 1)
+        }
+        if let allocated = self.memoryAllocated {
+            return min(max(Double(allocated) / Double(total), 0), 1)
+        }
+        return nil
+    }
     
     init(id: String, type: GPU_type, IOClass: String, vendor: String? = nil, model: String, cores: Int?, utilization: Double? = nil, render: Double? = nil, tiler: Double? = nil) {
         self.id = id
@@ -111,6 +131,7 @@ public class GPU: Module {
     private let notificationsView: Notifications
     
     private var infoReader: InfoReader? = nil
+    private var processReader: ProcessReader? = nil
     
     private var selectedGPU: String = ""
     private var notificationLevelState: Bool = false
@@ -142,6 +163,9 @@ public class GPU: Module {
         self.infoReader = InfoReader(.GPU) { [weak self] value in
             self?.infoCallback(value)
         }
+        self.processReader = ProcessReader(.GPU) { [weak self] value in
+            self?.popupView.processCallback(value)
+        }
         self.selectedGPU = Store.shared.string(key: "\(self.config.name)_gpu", defaultValue: self.selectedGPU)
         
         self.settingsView.selectedGPUHandler = { [weak self] value in
@@ -151,11 +175,20 @@ public class GPU: Module {
         self.settingsView.setInterval = { [weak self] value in
             self?.infoReader?.setInterval(value)
         }
+        self.settingsView.setTopInterval = { [weak self] value in
+            self?.processReader?.setInterval(value)
+        }
+        self.settingsView.callbackWhenUpdateNumberOfProcesses = { [weak self] in
+            self?.popupView.numberOfProcessesUpdated()
+            DispatchQueue.global(qos: .background).async {
+                self?.processReader?.read()
+            }
+        }
         self.settingsView.callback = { [weak self] in
             self?.infoReader?.read()
         }
         
-        self.setReaders([self.infoReader])
+        self.setReaders([self.infoReader, self.processReader])
     }
     
     private func infoCallback(_ raw: GPUs?) {

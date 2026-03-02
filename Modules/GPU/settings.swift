@@ -14,6 +14,8 @@ import Kit
 
 internal class Settings: NSStackView, Settings_v {
     private var updateIntervalValue: Int = 1
+    private var updateTopIntervalValue: Int = 1
+    private var numberOfProcesses: Int = 8
     private var selectedGPU: String
     private var showTypeValue: Bool = false
     
@@ -22,6 +24,8 @@ internal class Settings: NSStackView, Settings_v {
     public var selectedGPUHandler: (String) -> Void = {_ in }
     public var callback: (() -> Void) = {}
     public var setInterval: ((_ value: Int) -> Void) = {_ in }
+    public var setTopInterval: ((_ value: Int) -> Void) = {_ in }
+    public var callbackWhenUpdateNumberOfProcesses: (() -> Void) = {}
     
     private var hyperthreadView: NSView? = nil
     private var button: NSPopUpButton?
@@ -30,6 +34,8 @@ internal class Settings: NSStackView, Settings_v {
         self.title = module.stringValue
         self.selectedGPU = Store.shared.string(key: "\(self.title)_gpu", defaultValue: "")
         self.updateIntervalValue = Store.shared.int(key: "\(self.title)_updateInterval", defaultValue: self.updateIntervalValue)
+        self.updateTopIntervalValue = Store.shared.int(key: "\(self.title)_updateTopInterval", defaultValue: self.updateTopIntervalValue)
+        self.numberOfProcesses = Store.shared.int(key: "\(self.title)_processes", defaultValue: self.numberOfProcesses)
         self.showTypeValue = Store.shared.bool(key: "\(self.title)_showType", defaultValue: self.showTypeValue)
         
         super.init(frame: NSRect(x: 0, y: 0, width: 0, height: 0))
@@ -52,6 +58,19 @@ internal class Settings: NSStackView, Settings_v {
                 action: #selector(self.changeUpdateInterval),
                 items: ReaderUpdateIntervals,
                 selected: "\(self.updateIntervalValue)"
+            )),
+            PreferencesRow(localizedString("Update interval for top processes"), component: selectView(
+                action: #selector(self.changeUpdateTopInterval),
+                items: ReaderUpdateIntervals,
+                selected: "\(self.updateTopIntervalValue)"
+            ))
+        ]))
+
+        self.addArrangedSubview(PreferencesSection([
+            PreferencesRow(localizedString("Number of top processes"), component: selectView(
+                action: #selector(self.changeNumberOfProcesses),
+                items: NumbersOfProcesses.map{ KeyValue_t(key: "\($0)", value: "\($0)") },
+                selected: "\(self.numberOfProcesses)"
             ))
         ]))
         
@@ -112,6 +131,19 @@ internal class Settings: NSStackView, Settings_v {
         self.updateIntervalValue = value
         Store.shared.set(key: "\(self.title)_updateInterval", value: value)
         self.setInterval(value)
+    }
+    @objc private func changeUpdateTopInterval(_ sender: NSMenuItem) {
+        guard let key = sender.representedObject as? String, let value = Int(key) else { return }
+        self.updateTopIntervalValue = value
+        Store.shared.set(key: "\(self.title)_updateTopInterval", value: value)
+        self.setTopInterval(value)
+    }
+    @objc private func changeNumberOfProcesses(_ sender: NSMenuItem) {
+        if let value = Int(sender.title) {
+            self.numberOfProcesses = value
+            Store.shared.set(key: "\(self.title)_processes", value: value)
+            self.callbackWhenUpdateNumberOfProcesses()
+        }
     }
     @objc private func handleSelection(_ sender: NSMenuItem) {
         guard let key = sender.representedObject as? String else { return }
