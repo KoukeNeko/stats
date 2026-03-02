@@ -308,6 +308,20 @@
 "Utilization" = "उपयोग";
 "Render utilization" = "उपयोग प्रस्तुत करें";
 "Tiler utilization" = "टाइलर उपयोग";
+"Encode utilization" = "Encode utilization";
+"Decode utilization" = "Decode utilization";
+"Blit utilization" = "Blit utilization";
+"Compute utilization" = "Compute utilization";
+"GPU power" = "GPU power";
+"Memory used" = "Memory used";
+"Memory allocated" = "Memory allocated";
+"Memory total" = "Memory total";
+"Memory utilization" = "Memory utilization";
+"Throttling" = "Throttling";
+"Top GPU processes" = "Top GPU processes";
+"Show temperature on the main section" = "Show temperature on the main section";
+"Show power on the main section" = "Show power on the main section";
+"Show power in details" = "Show power in details";
 "GPU usage threshold" = "जीपीयू उपयोग सीमा";
 "GPU usage is" = "जीपीयू उपयोग %0 है";
 

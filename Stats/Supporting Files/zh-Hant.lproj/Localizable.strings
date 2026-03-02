@@ -308,6 +308,20 @@
 "Utilization" = "利用率";
 "Render utilization" = "渲染利用率";
 "Tiler utilization" = "圖塊利用率";
+"Encode utilization" = "編碼利用率";
+"Decode utilization" = "解碼利用率";
+"Blit utilization" = "Blit 利用率";
+"Compute utilization" = "計算利用率";
+"GPU power" = "GPU 功耗";
+"Memory used" = "已使用記憶體";
+"Memory allocated" = "已分配記憶體";
+"Memory total" = "總記憶體";
+"Memory utilization" = "記憶體利用率";
+"Throttling" = "降頻";
+"Top GPU processes" = "GPU 高占用程序";
+"Show temperature on the main section" = "在主要區塊顯示溫度";
+"Show power on the main section" = "在主要區塊顯示功耗";
+"Show power in details" = "在詳細資訊中顯示功耗";
 "GPU usage threshold" = "GPU使用量臨界值";
 "GPU usage is" = "GPU使用量：%0";
 

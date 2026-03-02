@@ -308,6 +308,20 @@
 "Utilization" = "使用率";
 "Render utilization" = "レンダリング";
 "Tiler utilization" = "タイルレンダリング";
+"Encode utilization" = "エンコード利用率";
+"Decode utilization" = "デコード利用率";
+"Blit utilization" = "Blit 利用率";
+"Compute utilization" = "コンピュート利用率";
+"GPU power" = "GPU 電力";
+"Memory used" = "使用中メモリ";
+"Memory allocated" = "割り当て済みメモリ";
+"Memory total" = "メモリ合計";
+"Memory utilization" = "メモリ利用率";
+"Throttling" = "サーマルスロットリング";
+"Top GPU processes" = "GPU上位のプロセス";
+"Show temperature on the main section" = "メインセクションに温度を表示";
+"Show power on the main section" = "メインセクションに電力を表示";
+"Show power in details" = "詳細に電力を表示";
 "GPU usage threshold" = "GPU usage threshold";
 "GPU usage is" = "GPU usage is %0";
 

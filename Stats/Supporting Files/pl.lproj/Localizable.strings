@@ -308,6 +308,20 @@
 "Utilization" = "Wykorzystanie";
 "Render utilization" = "Wykorzystanie rendera";
 "Tiler utilization" = "Wykorzystanie tilera";
+"Encode utilization" = "Encode utilization";
+"Decode utilization" = "Decode utilization";
+"Blit utilization" = "Blit utilization";
+"Compute utilization" = "Compute utilization";
+"GPU power" = "GPU power";
+"Memory used" = "Memory used";
+"Memory allocated" = "Memory allocated";
+"Memory total" = "Memory total";
+"Memory utilization" = "Memory utilization";
+"Throttling" = "Throttling";
+"Top GPU processes" = "Top GPU processes";
+"Show temperature on the main section" = "Show temperature on the main section";
+"Show power on the main section" = "Show power on the main section";
+"Show power in details" = "Show power in details";
 "GPU usage threshold" = "Próg wykorzystania GPU";
 "GPU usage is" = "Użycie GPU %0";
 
