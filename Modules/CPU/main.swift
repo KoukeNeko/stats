@@ -13,6 +13,8 @@ import WidgetKit
 public struct CPU_Load: Codable, RemoteType {
     public var totalUsage: Double = 0
     var usagePerCore: [Double] = []
+    var usagePerCoreSystem: [Double]? = nil
+    var usagePerCoreUser: [Double]? = nil
     var usageECores: Double? = nil
     var usagePCores: Double? = nil
     var usageSCores: Double? = nil

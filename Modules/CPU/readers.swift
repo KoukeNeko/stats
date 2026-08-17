@@ -12,6 +12,67 @@
 import Cocoa
 import Kit
 
+internal struct CPUTicks: Equatable {
+    let user: UInt32
+    let system: UInt32
+    let nice: UInt32
+    let idle: UInt32
+}
+
+internal struct CPUUsageBreakdown: Equatable {
+    let system: Double
+    let user: Double
+    let idle: Double
+    let total: Double
+
+    static let zero = CPUUsageBreakdown(system: 0, user: 0, idle: 0, total: 0)
+}
+
+internal func calculateCPUUsage(current: CPUTicks, previous: CPUTicks) -> CPUUsageBreakdown {
+    let userTicks = current.user &- previous.user
+    let systemTicks = current.system &- previous.system
+    let niceTicks = current.nice &- previous.nice
+    let idleTicks = current.idle &- previous.idle
+    let totalTicks = UInt64(userTicks) + UInt64(systemTicks) + UInt64(niceTicks) + UInt64(idleTicks)
+
+    guard totalTicks > 0 else { return .zero }
+
+    let total = Double(totalTicks)
+    let system = Double(systemTicks) / total
+    let user = Double(UInt64(userTicks) + UInt64(niceTicks)) / total
+    let idle = Double(idleTicks) / total
+
+    return CPUUsageBreakdown(
+        system: system,
+        user: user,
+        idle: idle,
+        total: min(1, system + user)
+    )
+}
+
+internal func mergeHyperthreadedCPUUsage(_ values: [CPUUsageBreakdown]) -> [CPUUsageBreakdown] {
+    guard values.count > 1 else { return values }
+
+    var result: [CPUUsageBreakdown] = []
+    result.reserveCapacity(values.count / 2)
+
+    for index in stride(from: 0, to: values.count - 1, by: 2) {
+        let first = values[index]
+        let second = values[index + 1]
+        let system = (first.system + second.system) / 2
+        let user = (first.user + second.user) / 2
+        let idle = (first.idle + second.idle) / 2
+        result.append(CPUUsageBreakdown(
+            system: system,
+            user: user,
+            idle: idle,
+            total: min(1, system + user)
+        ))
+    }
+
+    return result
+}
+
 internal class LoadReader: Reader<CPU_Load> {
     private var cpuInfo: processor_info_array_t!
     private var prevCpuInfo: processor_info_array_t?
@@ -24,7 +85,8 @@ internal class LoadReader: Reader<CPU_Load> {
     
     private var response: CPU_Load = CPU_Load()
     private var numCPUsU: natural_t = 0
-    private var usagePerCore: [Double] = []
+    private var usagePerCore: [CPUUsageBreakdown] = []
+    private var displayedUsagePerCore: [CPUUsageBreakdown] = []
     private var cores: [core_s]? = nil
     
     public override func setup() {
@@ -47,40 +109,32 @@ internal class LoadReader: Reader<CPU_Load> {
             
             if let prevCpuInfo = self.prevCpuInfo {
                 for i in 0 ..< Int32(self.numCPUs) {
-                    let user = UInt32(bitPattern: self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_USER)])
-                        &- UInt32(bitPattern: prevCpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_USER)])
-                    let system = UInt32(bitPattern: self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_SYSTEM)])
-                        &- UInt32(bitPattern: prevCpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_SYSTEM)])
-                    let nice = UInt32(bitPattern: self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_NICE)])
-                        &- UInt32(bitPattern: prevCpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_NICE)])
-                    let idle = UInt32(bitPattern: self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_IDLE)])
-                        &- UInt32(bitPattern: prevCpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_IDLE)])
-                    
-                    let inUse = UInt64(user) + UInt64(system) + UInt64(nice)
-                    let total = inUse + UInt64(idle)
-                    if total != 0 {
-                        self.usagePerCore.append(min(1, Double(inUse) / Double(total)))
-                    }
+                    let current = CPUTicks(
+                        user: UInt32(bitPattern: self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_USER)]),
+                        system: UInt32(bitPattern: self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_SYSTEM)]),
+                        nice: UInt32(bitPattern: self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_NICE)]),
+                        idle: UInt32(bitPattern: self.cpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_IDLE)])
+                    )
+                    let previous = CPUTicks(
+                        user: UInt32(bitPattern: prevCpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_USER)]),
+                        system: UInt32(bitPattern: prevCpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_SYSTEM)]),
+                        nice: UInt32(bitPattern: prevCpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_NICE)]),
+                        idle: UInt32(bitPattern: prevCpuInfo[Int(CPU_STATE_MAX * i + CPU_STATE_IDLE)])
+                    )
+                    self.usagePerCore.append(calculateCPUUsage(current: current, previous: previous))
                 }
             }
             self.CPUUsageLock.unlock()
             
             let showHyperthratedCores = Store.shared.bool(key: "CPU_hyperhreading", defaultValue: false)
             if showHyperthratedCores || !self.hasHyperthreadingCores {
-                self.response.usagePerCore = self.usagePerCore
+                self.displayedUsagePerCore = self.usagePerCore
             } else {
-                var i = 0
-                var a = 0
-                
-                self.response.usagePerCore = []
-                while i < Int(self.usagePerCore.count/2) {
-                    a = i*2
-                    if self.usagePerCore.indices.contains(a) && self.usagePerCore.indices.contains(a+1) {
-                        self.response.usagePerCore.append((Double(self.usagePerCore[a]) + Double(self.usagePerCore[a+1])) / 2)
-                    }
-                    i += 1
-                }
+                self.displayedUsagePerCore = mergeHyperthreadedCPUUsage(self.usagePerCore)
             }
+            self.response.usagePerCore = self.displayedUsagePerCore.map(\.total)
+            self.response.usagePerCoreSystem = self.displayedUsagePerCore.map(\.system)
+            self.response.usagePerCoreUser = self.displayedUsagePerCore.map(\.user)
             
             if let prevCpuInfo = self.prevCpuInfo {
                 let prevCpuInfoSize: size_t = MemoryLayout<integer_t>.stride * Int(self.numPrevCpuInfo)
@@ -102,46 +156,44 @@ internal class LoadReader: Reader<CPU_Load> {
             return
         }
         
-        let userDiff = Double(cpuInfo!.cpu_ticks.0 &- self.previousInfo.cpu_ticks.0)
-        let sysDiff  = Double(cpuInfo!.cpu_ticks.1 &- self.previousInfo.cpu_ticks.1)
-        let idleDiff = Double(cpuInfo!.cpu_ticks.2 &- self.previousInfo.cpu_ticks.2)
-        let niceDiff = Double(cpuInfo!.cpu_ticks.3 &- self.previousInfo.cpu_ticks.3)
-        let totalTicks = sysDiff + userDiff + niceDiff + idleDiff
-        
-        let system = sysDiff / totalTicks
-        let user = userDiff / totalTicks
-        let idle = idleDiff / totalTicks
-        
-        if !system.isNaN {
-            self.response.systemLoad  = system
-        }
-        if !user.isNaN {
-            self.response.userLoad = user
-        }
-        if !idle.isNaN {
-            self.response.idleLoad = idle
-        }
+        let currentTicks = CPUTicks(
+            user: cpuInfo!.cpu_ticks.0,
+            system: cpuInfo!.cpu_ticks.1,
+            nice: cpuInfo!.cpu_ticks.3,
+            idle: cpuInfo!.cpu_ticks.2
+        )
+        let previousTicks = CPUTicks(
+            user: self.previousInfo.cpu_ticks.0,
+            system: self.previousInfo.cpu_ticks.1,
+            nice: self.previousInfo.cpu_ticks.3,
+            idle: self.previousInfo.cpu_ticks.2
+        )
+        let usage = calculateCPUUsage(current: currentTicks, previous: previousTicks)
+
+        self.response.systemLoad = usage.system
+        self.response.userLoad = usage.user
+        self.response.idleLoad = usage.idle
         self.previousInfo = cpuInfo!
-        self.response.totalUsage = self.response.systemLoad + self.response.userLoad
+        self.response.totalUsage = usage.total
         
         if let cores = self.cores {
             let eCoresList: [Double] = cores.filter({ $0.type == .efficiency }).enumerated().compactMap { (i, c) -> Double? in
                 if self.response.usagePerCore.indices.contains(Int(c.id)) {
                     return self.response.usagePerCore[Int(c.id)]
                 }
-                return i < self.usagePerCore.count ? self.usagePerCore[i] : 0
+                return i < self.displayedUsagePerCore.count ? self.displayedUsagePerCore[i].total : 0
             }
             let pCoresList: [Double] = cores.filter({ $0.type == .performance }).enumerated().compactMap { (i, c) -> Double? in
                 if self.response.usagePerCore.indices.contains(Int(c.id)) {
                     return self.response.usagePerCore[Int(c.id)]
                 }
-                return i < self.usagePerCore.count ? self.usagePerCore[i] : 0
+                return i < self.displayedUsagePerCore.count ? self.displayedUsagePerCore[i].total : 0
             }
             let sCoresList: [Double] = cores.filter({ $0.type == .super }).enumerated().compactMap { (i, c) -> Double? in
                 if self.response.usagePerCore.indices.contains(Int(c.id)) {
                     return self.response.usagePerCore[Int(c.id)]
                 }
-                return i < self.usagePerCore.count ? self.usagePerCore[i] : 0
+                return i < self.displayedUsagePerCore.count ? self.displayedUsagePerCore[i].total : 0
             }
             
             if !eCoresList.isEmpty {
