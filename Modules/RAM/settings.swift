@@ -46,7 +46,6 @@ internal class Settings: NSStackView, Settings_v, NSTextFieldDelegate {
     private var updateIntervalValue: Int = 1
     private var updateTopIntervalValue: Int = 1
     private var numberOfProcesses: Int = 8
-    private var splitValueState: Bool = false
     private var notificationLevel: String = "Disabled"
     private var textValue: String = "$mem.used/$mem.total ($pressure.value)"
     private var combinedProcessesState: Bool = false
@@ -65,7 +64,6 @@ internal class Settings: NSStackView, Settings_v, NSTextFieldDelegate {
         self.updateIntervalValue = Store.shared.int(key: "\(self.title)_updateInterval", defaultValue: self.updateIntervalValue)
         self.updateTopIntervalValue = Store.shared.int(key: "\(self.title)_updateTopInterval", defaultValue: self.updateTopIntervalValue)
         self.numberOfProcesses = Store.shared.int(key: "\(self.title)_processes", defaultValue: self.numberOfProcesses)
-        self.splitValueState = Store.shared.bool(key: "\(self.title)_splitValue", defaultValue: self.splitValueState)
         self.notificationLevel = Store.shared.string(key: "\(self.title)_notificationLevel", defaultValue: self.notificationLevel)
         self.textValue = Store.shared.string(key: "\(self.title)_textWidgetValue", defaultValue: self.textValue)
         self.combinedProcessesState = Store.shared.bool(key: "\(self.title)_combinedProcesses", defaultValue: self.combinedProcessesState)
@@ -108,15 +106,6 @@ internal class Settings: NSStackView, Settings_v, NSTextFieldDelegate {
                 selected: "\(self.numberOfProcesses)"
             ))
         ]))
-        
-        if !widgets.filter({ $0 == .barChart }).isEmpty {
-            self.addArrangedSubview(PreferencesSection([
-                PreferencesRow(localizedString("Split the value (App/Wired/Compressed)"), component: switchView(
-                    action: #selector(toggleSplitValue),
-                    state: self.splitValueState
-                ))
-            ]))
-        }
         
         if widgets.contains(where: { $0 == .text }) {
             let textField = self.inputField(id: "text", value: self.textValue, placeholder: localizedString("This will be visible in the text widget"))
@@ -163,11 +152,6 @@ internal class Settings: NSStackView, Settings_v, NSTextFieldDelegate {
             Store.shared.set(key: "\(self.title)_processes", value: value)
             self.callbackWhenUpdateNumberOfProcesses()
         }
-    }
-    @objc private func toggleSplitValue(_ sender: NSControl) {
-        self.splitValueState = controlState(sender)
-        Store.shared.set(key: "\(self.title)_splitValue", value: self.splitValueState)
-        self.callback()
     }
     @objc private func toggleCombinedProcesses(_ sender: NSControl) {
         self.combinedProcessesState = controlState(sender)

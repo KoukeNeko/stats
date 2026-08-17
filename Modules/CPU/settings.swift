@@ -30,7 +30,6 @@ internal class Settings: NSStackView, Settings_v {
     public var setTopInterval: ((_ value: Int) -> Void) = {_ in }
     
     private var hyperthreadView: NSSwitch? = nil
-    private var splitValueView: NSSwitch? = nil
     private var usagePerCoreView: NSSwitch? = nil
     private var groupByClustersView: NSSwitch? = nil
     
@@ -62,6 +61,10 @@ internal class Settings: NSStackView, Settings_v {
     
     public func load(widgets: [widget_t]) {
         self.subviews.forEach{ $0.removeFromSuperview() }
+        self.hyperthreadState = Store.shared.bool(key: "\(self.title)_hyperhreading", defaultValue: false)
+        self.usagePerCoreState = Store.shared.bool(key: "\(self.title)_usagePerCore", defaultValue: false)
+        self.splitValueState = Store.shared.bool(key: "\(self.title)_splitValue", defaultValue: false)
+        self.clustersGroupState = Store.shared.bool(key: "\(self.title)_clustersGroup", defaultValue: false)
         
         self.addArrangedSubview(PreferencesSection([
             PreferencesRow(localizedString("Update interval"), component: selectView(
@@ -85,17 +88,11 @@ internal class Settings: NSStackView, Settings_v {
         ]))
         
         if !widgets.filter({ $0 == .barChart }).isEmpty {
-            self.splitValueView = switchView(
-                action: #selector(self.toggleSplitValue),
-                state: self.splitValueState
-            )
             self.usagePerCoreView = switchView(
                 action: #selector(self.toggleUsagePerCore),
                 state: self.usagePerCoreState
             )
             if self.clustersGroupState {
-                self.splitValueView?.isEnabled = false
-                self.splitValueView?.state = .off
                 self.splitValueState = false
                 Store.shared.set(key: "\(self.title)_splitValue", value: self.splitValueState)
             }
@@ -123,8 +120,6 @@ internal class Settings: NSStackView, Settings_v {
                 }
                 rows.append(PreferencesRow(localizedString("Show hyper-threading cores"), component: self.hyperthreadView!))
             }
-            rows.append(PreferencesRow(localizedString("Split the value (System/User)"), component: self.splitValueView!))
-            
             self.addArrangedSubview(PreferencesSection(rows))
         }
     }
@@ -157,7 +152,6 @@ internal class Settings: NSStackView, Settings_v {
         self.callback()
         
         self.hyperthreadView?.isEnabled = self.usagePerCoreState
-        self.splitValueView?.isEnabled = !self.clustersGroupState
         
         if !self.usagePerCoreState {
             self.hyperthreadState = false
@@ -178,22 +172,13 @@ internal class Settings: NSStackView, Settings_v {
         self.callback()
     }
     
-    @objc func toggleSplitValue(_ sender: NSControl) {
-        self.splitValueState = controlState(sender)
-        Store.shared.set(key: "\(self.title)_splitValue", value: self.splitValueState)
-        self.callback()
-    }
-    
     @objc func toggleClustersGroup(_ sender: NSControl) {
         self.clustersGroupState = controlState(sender)
         Store.shared.set(key: "\(self.title)_clustersGroup", value: self.clustersGroupState)
         
-        self.splitValueView?.isEnabled = !self.clustersGroupState
-
         if self.clustersGroupState {
             self.splitValueState = false
             Store.shared.set(key: "\(self.title)_splitValue", value: self.splitValueState)
-            self.splitValueView?.state = .off
         }
         
         if self.clustersGroupState && self.usagePerCoreState {

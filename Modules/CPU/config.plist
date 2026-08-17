@@ -53,7 +53,14 @@
 			<key>Default</key>
 			<false/>
 			<key>Split value</key>
-			<true/>
+			<dict>
+				<key>Label</key>
+				<string>Split the value (System/User)</string>
+				<key>Conflicts</key>
+				<array>
+					<string>CPU_clustersGroup</string>
+				</array>
+			</dict>
 			<key>Preview</key>
 			<dict>
 				<key>Value</key>

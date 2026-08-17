@@ -43,7 +43,12 @@
 			<key>Default</key>
 			<false/>
 			<key>Split value</key>
-			<string>Split the value (App/Wired/Compressed)</string>
+			<dict>
+				<key>Label</key>
+				<string>Split the value (App/Wired/Compressed)</string>
+				<key>Control</key>
+				<string>displayMode</string>
+			</dict>
 			<key>Label</key>
 			<false/>
 			<key>Box</key>
