@@ -13,6 +13,8 @@ import WidgetKit
 public struct CPU_Load: Codable, RemoteType {
     public var totalUsage: Double = 0
     var usagePerCore: [Double] = []
+    var usagePerCoreSystem: [Double]? = nil
+    var usagePerCoreUser: [Double]? = nil
     var usageECores: Double? = nil
     var usagePCores: Double? = nil
     var usageSCores: Double? = nil
@@ -119,6 +121,21 @@ public class CPU: Module {
         }
         return color.additional as! NSColor
     }
+
+    private func darkerSplitColor(_ color: NSColor) -> NSColor {
+        color.blended(withFraction: 0.35, of: .black) ?? color
+    }
+
+    private func barChartColor(_ widget: BarChart, coreAt index: Int, usage: Double) -> NSColor {
+        guard widget.colorState == .cluster else {
+            return widget.resolvedColor(for: usage)
+        }
+        let cores = SystemKit.shared.device.info.cpu?.cores ?? []
+        let core = cores.first(where: { $0.id == index })
+        return core?.type == .efficiency
+            ? self.eCoresColor
+            : core?.type == .super ? self.sCoresColor : self.pCoresColor
+    }
     
     private var systemWidgetsUpdatesState: Bool {
         self.userDefaults?.bool(forKey: "systemWidgetsUpdates_state") ?? false
@@ -210,7 +227,19 @@ public class CPU: Module {
                 let cores = SystemKit.shared.device.info.cpu?.cores ?? []
                 
                 if self.usagePerCoreState {
-                    if widget.colorState == .cluster {
+                    if self.splitValueState,
+                       let system = value.usagePerCoreSystem,
+                       let user = value.usagePerCoreUser,
+                       system.count == value.usagePerCore.count,
+                       user.count == value.usagePerCore.count {
+                        val = value.usagePerCore.indices.map { index in
+                            let color = self.barChartColor(widget, coreAt: index, usage: value.usagePerCore[index])
+                            return [
+                                ColorValue(user[index], color: color),
+                                ColorValue(system[index], color: self.darkerSplitColor(color))
+                            ]
+                        }
+                    } else if widget.colorState == .cluster {
                         val = []
                         for (i, v) in value.usagePerCore.enumerated() {
                             let core = cores.first(where: {$0.id == i })
@@ -221,9 +250,10 @@ public class CPU: Module {
                         val = value.usagePerCore.map({ [ColorValue($0)] })
                     }
                 } else if self.splitValueState {
+                    let color = widget.resolvedColor(for: value.totalUsage)
                     val = [[
-                        ColorValue(value.systemLoad, color: self.systemColor),
-                        ColorValue(value.userLoad, color: self.userColor)
+                        ColorValue(value.userLoad, color: color),
+                        ColorValue(value.systemLoad, color: self.darkerSplitColor(color))
                     ]]
                 } else if self.groupByClustersState {
                     var clusters: [[ColorValue]] = []

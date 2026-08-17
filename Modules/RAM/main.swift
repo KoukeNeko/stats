@@ -90,6 +90,14 @@ public class RAM: Module {
         }
         return color.additional as! NSColor
     }
+    private var freeColor: NSColor {
+        let color = SColor.lightGray
+        let key = Store.shared.string(key: "\(self.config.name)_freeColor", defaultValue: color.key)
+        if let c = SColor.fromString(key).additional as? NSColor {
+            return c
+        }
+        return color.additional as! NSColor
+    }
     
     private var textValue: String {
         Store.shared.string(key: "\(self.name)_textWidgetValue", defaultValue: "$mem.used/$mem.total ($pressure.value)")
@@ -168,7 +176,8 @@ public class RAM: Module {
                     widget.setValue([[
                         ColorValue(value.app/total, color: self.appColor),
                         ColorValue(value.wired/total, color: self.wiredColor),
-                        ColorValue(value.compressed/total, color: self.compressedColor)
+                        ColorValue(value.compressed/total, color: self.compressedColor),
+                        ColorValue(value.free/total, color: self.freeColor)
                     ]])
                 } else {
                     widget.setValue([[ColorValue(value.usage)]])
