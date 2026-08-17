@@ -113,6 +113,20 @@ internal class Popup: PopupWrapper {
     private var pCoresColor: NSColor { self.pCoresColorState.additional as? NSColor ?? NSColor.systemBlue }
     private var sCoresColorState: SColor = .orange
     private var sCoresColor: NSColor { self.sCoresColorState.additional as? NSColor ?? NSColor.systemOrange }
+
+    private func darkerSplitColor(_ color: NSColor) -> NSColor {
+        color.blended(withFraction: 0.35, of: .black) ?? color
+    }
+
+    private func coreColor(at index: Int) -> NSColor {
+        guard let cores = SystemKit.shared.device.info.cpu?.cores, !cores.isEmpty else {
+            return .systemBlue
+        }
+        let core = cores.first(where: { $0.id == index })
+        return core?.type == .efficiency
+            ? self.eCoresColor
+            : core?.type == .super ? self.sCoresColor : self.pCoresColor
+    }
     
     private var processesView: NSView? = nil
     
@@ -253,8 +267,8 @@ internal class Popup: PopupWrapper {
             self.stackedLineChart = StackedLineChartView(
                 frame: chartFrame,
                 num: self.lineChartHistory,
-                systemColor: self.systemColor,
-                userColor: self.userColor,
+                systemColor: self.darkerSplitColor(self.chartColor),
+                userColor: self.chartColor,
                 scale: self.lineChartScale,
                 fixedScale: self.lineChartFixedScale
             )
@@ -444,25 +458,18 @@ internal class Popup: PopupWrapper {
            let user = value.usagePerCoreUser,
            system.count == value.usagePerCore.count,
            user.count == value.usagePerCore.count {
-            let usagePerCore = zip(user, system).map { user, system in
-                [
-                    ColorValue(user, color: self.userColor),
-                    ColorValue(system, color: self.systemColor)
+            let usagePerCore = value.usagePerCore.indices.map { index in
+                let color = self.coreColor(at: index)
+                return [
+                    ColorValue(user[index], color: color),
+                    ColorValue(system[index], color: self.darkerSplitColor(color))
                 ]
             }
             self.columnChart?.setValues(usagePerCore)
         } else {
             var usagePerCore: [ColorValue] = []
-            if let cores = SystemKit.shared.device.info.cpu?.cores, !cores.isEmpty {
-                for i in 0..<value.usagePerCore.count {
-                    let core = cores.first(where: { $0.id == i })
-                    let color = core?.type == .efficiency ? self.eCoresColor : core?.type == .super ? self.sCoresColor : self.pCoresColor
-                    usagePerCore.append(ColorValue(value.usagePerCore[i], color: color))
-                }
-            } else {
-                for i in 0..<value.usagePerCore.count {
-                    usagePerCore.append(ColorValue(value.usagePerCore[i], color: NSColor.systemBlue))
-                }
+            for index in value.usagePerCore.indices {
+                usagePerCore.append(ColorValue(value.usagePerCore[index], color: self.coreColor(at: index)))
             }
             self.columnChart?.setValues(usagePerCore)
         }
@@ -666,7 +673,6 @@ internal class Popup: PopupWrapper {
         self.systemColorState = SColor.fromString(key, defaultValue: self.systemColorState)
         Store.shared.set(key: "\(self.title)_systemColor", value: self.systemColorState.key)
         self.systemColorView?.layer?.backgroundColor = (self.systemColorState.additional as? NSColor)?.cgColor
-        self.stackedLineChart?.setColors(system: self.systemColor, user: self.userColor)
         self.replay(self.loadCache, render: self.renderLoad)
     }
     @objc private func toggleUserColor(_ sender: NSMenuItem) {
@@ -674,7 +680,6 @@ internal class Popup: PopupWrapper {
         self.userColorState = SColor.fromString(key, defaultValue: self.userColorState)
         Store.shared.set(key: "\(self.title)_userColor", value: self.userColorState.key)
         self.userColorView?.layer?.backgroundColor = (self.userColorState.additional as? NSColor)?.cgColor
-        self.stackedLineChart?.setColors(system: self.systemColor, user: self.userColor)
         self.replay(self.loadCache, render: self.renderLoad)
     }
     @objc private func toggleIdleColor(_ sender: NSMenuItem) {
@@ -689,6 +694,7 @@ internal class Popup: PopupWrapper {
         Store.shared.set(key: "\(self.title)_chartColor", value: self.chartColorState.key)
         if let color = self.chartColorState.additional as? NSColor {
             self.lineChart?.setColor(color)
+            self.stackedLineChart?.setColors(system: self.darkerSplitColor(color), user: color)
         }
     }
     @objc private func toggleECoresColor(_ sender: NSMenuItem) {
@@ -699,6 +705,7 @@ internal class Popup: PopupWrapper {
             self.eCoresColorView?.layer?.backgroundColor = color.cgColor
             self.eCoresFreqColorView?.layer?.backgroundColor = color.cgColor
         }
+        self.replay(self.loadCache, render: self.renderLoad)
     }
     @objc private func togglePCoresColor(_ sender: NSMenuItem) {
         guard let key = sender.representedObject as? String else { return }
@@ -708,6 +715,7 @@ internal class Popup: PopupWrapper {
             self.pCoresColorView?.layer?.backgroundColor = color.cgColor
             self.pCoresFreqColorView?.layer?.backgroundColor = color.cgColor
         }
+        self.replay(self.loadCache, render: self.renderLoad)
     }
     @objc private func toggleSCoresColor(_ sender: NSMenuItem) {
         guard let key = sender.representedObject as? String else { return }
@@ -717,6 +725,7 @@ internal class Popup: PopupWrapper {
             self.sCoresColorView?.layer?.backgroundColor = color.cgColor
             self.sCoresFreqColorView?.layer?.backgroundColor = color.cgColor
         }
+        self.replay(self.loadCache, render: self.renderLoad)
     }
     @objc private func toggleLineChartHistory(_ sender: NSMenuItem) {
         guard let key = sender.representedObject as? String, let value = Int(key) else { return }
