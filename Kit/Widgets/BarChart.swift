@@ -15,7 +15,7 @@ public class BarChart: WidgetWrapper {
     private var labelState: Bool = false
     private var boxState: Bool = true
     private var frameState: Bool = false
-    private var splitValueAvailable: Bool = false
+    private var splitValueLabel: String? = nil
     private var splitValueState: Bool = false
     public var colorState: SColor = .systemAccent
     private var colors: [SColor] = SColor.allCases
@@ -53,8 +53,10 @@ public class BarChart: WidgetWrapper {
             if let box = configuration["Box"] as? Bool {
                 self.boxState = box
             }
-            if let splitValue = config!["Split value"] as? Bool {
-                self.splitValueAvailable = splitValue
+            if let splitValue = config!["Split value"] as? String {
+                self.splitValueLabel = splitValue
+            } else if let splitValue = config!["Split value"] as? Bool, splitValue {
+                self.splitValueLabel = "Split the value (System/User)"
             }
             if let unsupportedColors = configuration["Unsupported colors"] as? [String] {
                 self.colors = self.colors.filter{ !unsupportedColors.contains($0.key) }
@@ -321,9 +323,9 @@ public class BarChart: WidgetWrapper {
             PreferencesRow(localizedString("Box"), component: box),
             PreferencesRow(localizedString("Frame"), component: frame)
         ]
-        if self.splitValueAvailable {
+        if let splitValueLabel = self.splitValueLabel {
             self.splitValueState = Store.shared.bool(key: "\(self.title)_splitValue", defaultValue: false)
-            rows.append(PreferencesRow(localizedString("Split the value (System/User)"), component: switchView(
+            rows.append(PreferencesRow(localizedString(splitValueLabel), component: switchView(
                 action: #selector(self.toggleSplitValue),
                 state: self.splitValueState
             )))
