@@ -11,6 +11,20 @@
 
 import Cocoa
 
+public enum PopupAppearance {
+    public static var liquidGlass: Bool {
+        get {
+            if #available(macOS 26.0, *) {
+                return Store.shared.bool(key: "liquidGlass_popup", defaultValue: false)
+            }
+            return false
+        }
+        set {
+            Store.shared.set(key: "liquidGlass_popup", value: newValue)
+        }
+    }
+}
+
 public final class PopupCache<T> {
     public var value: T?
     public var initialized: Bool = false
@@ -115,6 +129,37 @@ public class PopupWindow: NSWindow, NSWindowDelegate {
         self.delegate = self
     }
     
+    public func presentWhenReady(_ action: @escaping () -> Void) {
+        guard PopupAppearance.liquidGlass, !NSApplication.shared.isActive else {
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            action()
+            return
+        }
+
+        var observer: NSObjectProtocol?
+        var didPresent = false
+        let present = {
+            guard !didPresent else { return }
+            didPresent = true
+            if let observer {
+                NotificationCenter.default.removeObserver(observer)
+            }
+            action()
+        }
+
+        observer = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: NSApplication.shared,
+            queue: .main
+        ) { _ in
+            present()
+        }
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            present()
+        }
+    }
+
     public func windowWillMove(_ notification: Notification) {
         self.viewController.setCloseButton(true)
         self.locked = true
@@ -182,8 +227,9 @@ internal class PopupViewController: NSViewController {
 internal class PopupView: NSView {
     private var view: Popup_p? = nil
     
-    private var foreground: NSVisualEffectView
+    private var foreground: NSView
     private var background: NSView
+    private var usesGlassEffect: Bool
     
     private let header: HeaderView
     private let body: NSScrollView
@@ -210,17 +256,15 @@ internal class PopupView: NSView {
         self.windowHeight = NSScreen.main?.visibleFrame.height
         self.containerHeight = self.body.documentView?.frame.height
         
-        self.foreground = NSVisualEffectView(frame: frame)
-        self.foreground.material = .titlebar
-        self.foreground.blendingMode = .behindWindow
-        self.foreground.state = .active
-        self.foreground.wantsLayer = true
-        self.foreground.layer?.backgroundColor = NSColor.red.cgColor
-        self.foreground.layer?.cornerRadius = 6
-        
         self.background = NSView(frame: frame)
         self.background.wantsLayer = true
-        self.foreground.addSubview(self.background)
+        let foreground = PopupView.makeForeground(
+            frame: frame,
+            background: self.background,
+            useGlassEffect: PopupAppearance.liquidGlass
+        )
+        self.foreground = foreground.view
+        self.usesGlassEffect = foreground.usesGlassEffect
         
         super.init(frame: frame)
         
@@ -235,6 +279,7 @@ internal class PopupView: NSView {
         self.addSubview(self.foreground, positioned: .below, relativeTo: .none)
         self.addSubview(self.header)
         self.addSubview(self.body)
+        self.applyBackgroundStyle()
     }
     
     required init?(coder: NSCoder) {
@@ -242,7 +287,60 @@ internal class PopupView: NSView {
     }
     
     override func updateLayer() {
-        self.background.layer?.backgroundColor = self.isDarkMode ? .clear : NSColor.white.cgColor
+        self.applyBackgroundStyle()
+    }
+
+    private static func makeForeground(
+        frame: NSRect,
+        background: NSView,
+        useGlassEffect: Bool
+    ) -> (view: NSView, usesGlassEffect: Bool) {
+        if useGlassEffect, #available(macOS 26.0, *),
+           let type = NSClassFromString("NSGlassEffectView") as? NSView.Type {
+            let view = type.init(frame: frame)
+            view.setValue(0, forKey: "style")
+            view.setValue(6, forKey: "cornerRadius")
+            view.setValue(background, forKey: "contentView")
+            return (view, true)
+        }
+
+        let view = NSVisualEffectView(frame: frame)
+        view.material = .titlebar
+        view.blendingMode = .behindWindow
+        view.state = .active
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.clear.cgColor
+        view.layer?.cornerRadius = 6
+        view.addSubview(background)
+        return (view, false)
+    }
+
+    private func refreshForegroundIfNeeded() {
+        let useGlassEffect = PopupAppearance.liquidGlass
+        guard self.usesGlassEffect != useGlassEffect else { return }
+
+        let frame = self.foreground.frame
+        if self.usesGlassEffect {
+            self.foreground.setValue(nil, forKey: "contentView")
+        } else {
+            self.background.removeFromSuperview()
+        }
+        self.foreground.removeFromSuperview()
+
+        let foreground = PopupView.makeForeground(
+            frame: frame,
+            background: self.background,
+            useGlassEffect: useGlassEffect
+        )
+        self.foreground = foreground.view
+        self.usesGlassEffect = foreground.usesGlassEffect
+        self.addSubview(self.foreground, positioned: .below, relativeTo: .none)
+        self.applyBackgroundStyle()
+    }
+
+    private func applyBackgroundStyle() {
+        self.background.layer?.backgroundColor = self.usesGlassEffect || self.isDarkMode ?
+            NSColor.clear.cgColor : NSColor.white.cgColor
     }
     
     fileprivate func setView(_ view: Popup_p?) {
@@ -290,6 +388,7 @@ internal class PopupView: NSView {
     }
     
     internal func appear() {
+        self.refreshForegroundIfNeeded()
         self.view?.appear()
         
         self.display()

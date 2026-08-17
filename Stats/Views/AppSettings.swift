@@ -102,7 +102,7 @@ class ApplicationSettings: NSStackView {
             state: LaunchAtLogin.isEnabled
         )
         
-        scrollView.stackView.addArrangedSubview(PreferencesSection([
+        var appPreferences: [PreferencesRow] = [
             PreferencesRow(localizedString("Check for updates"), component: self.updateSelector!),
             PreferencesRow(localizedString("Temperature"), component: selectView(
                 action: #selector(self.toggleTemperatureUnits),
@@ -113,7 +113,19 @@ class ApplicationSettings: NSStackView {
                 action: #selector(self.toggleDock),
                 state: Store.shared.bool(key: "dockIcon", defaultValue: false)
             )),
-            PreferencesRow(localizedString("Start at login"), component: self.startAtLoginBtn!),
+            PreferencesRow(localizedString("Start at login"), component: self.startAtLoginBtn!)
+        ]
+        if #available(macOS 26.0, *) {
+            appPreferences.append(PreferencesRow(
+                localizedString("Liquid Glass"),
+                localizedString("Popup"),
+                component: switchView(
+                    action: #selector(self.toggleLiquidGlassPopup),
+                    state: PopupAppearance.liquidGlass
+                )
+            ))
+        }
+        appPreferences.append(contentsOf: [
             PreferencesRow(localizedString("Keep the menubar items position"), component: switchView(
                 action: #selector(self.toggleMenuBarPosition),
                 state: self.keepMenuBarPosition
@@ -122,7 +134,8 @@ class ApplicationSettings: NSStackView {
                 action: #selector(self.toggleSystemWidgetsUpdatesState),
                 state: self.systemWidgetsUpdatesState
             ))
-        ]))
+        ])
+        scrollView.stackView.addArrangedSubview(PreferencesSection(appPreferences))
         
         self.combinedModulesView = PreferencesSection([
             PreferencesRow(localizedString("Combined modules"), component: switchView(
@@ -360,7 +373,11 @@ class ApplicationSettings: NSStackView {
             Store.shared.set(key: "runAtLoginInitialized", value: true)
         }
     }
-    
+
+    @objc private func toggleLiquidGlassPopup(_ sender: NSButton) {
+        PopupAppearance.liquidGlass = sender.state == NSControl.StateValue.on
+    }
+
     @objc private func toggleCombinedModules(_ sender: NSButton) {
         self.combinedModulesState = sender.state == NSControl.StateValue.on
         self.combinedModulesView?.setRowVisibility(1, newState: self.combinedModulesState)

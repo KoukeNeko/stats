@@ -149,26 +149,27 @@ internal class CombinedView: NSObject, NSGestureRecognizerDelegate {
         openedWindows.forEach{ $0.setIsVisible(false) }
         
         if popup.occlusionState.rawValue == 8192 {
-            NSApplication.shared.activate(ignoringOtherApps: true)
-            
-            popup.contentView?.invalidateIntrinsicContentSize()
-            
-            let windowCenter = popup.contentView!.intrinsicContentSize.width / 2
-            var x = window.frame.origin.x - windowCenter + window.frame.width/2
-            let y = window.frame.origin.y - popup.contentView!.intrinsicContentSize.height - 3
-            
-            let buttonPoint = NSPoint(x: window.frame.midX, y: window.frame.midY)
-            if let screen = NSScreen.screens.first(where: { $0.frame.contains(buttonPoint) }) ?? NSScreen.main {
-                if x + popup.contentView!.intrinsicContentSize.width > screen.frame.maxX {
-                    x = screen.frame.maxX - popup.contentView!.intrinsicContentSize.width - 3
+            popup.presentWhenReady {
+                guard let contentView = popup.contentView else { return }
+                contentView.invalidateIntrinsicContentSize()
+
+                let windowCenter = contentView.intrinsicContentSize.width / 2
+                var x = window.frame.origin.x - windowCenter + window.frame.width/2
+                let y = window.frame.origin.y - contentView.intrinsicContentSize.height - 3
+
+                let buttonPoint = NSPoint(x: window.frame.midX, y: window.frame.midY)
+                if let screen = NSScreen.screens.first(where: { $0.frame.contains(buttonPoint) }) ?? NSScreen.main {
+                    if x + contentView.intrinsicContentSize.width > screen.frame.maxX {
+                        x = screen.frame.maxX - contentView.intrinsicContentSize.width - 3
+                    }
+                    if x < screen.frame.minX {
+                        x = screen.frame.minX + 3
+                    }
                 }
-                if x < screen.frame.minX {
-                    x = screen.frame.minX + 3
-                }
+
+                popup.setFrameOrigin(NSPoint(x: x, y: y))
+                popup.setIsVisible(true)
             }
-            
-            popup.setFrameOrigin(NSPoint(x: x, y: y))
-            popup.setIsVisible(true)
         } else {
             popup.setIsVisible(false)
         }

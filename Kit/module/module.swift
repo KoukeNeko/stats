@@ -307,26 +307,27 @@ open class Module {
         }
         
         if popup.occlusionState.rawValue == 8192 || reopen {
-            NSApplication.shared.activate(ignoringOtherApps: true)
-            
-            popup.contentView?.invalidateIntrinsicContentSize()
-            
-            let windowCenter = popup.contentView!.intrinsicContentSize.width / 2
-            var x = buttonOrigin.x - windowCenter + buttonCenter
-            let y = buttonOrigin.y - popup.contentView!.intrinsicContentSize.height - 3
-            
-            let buttonPoint = NSPoint(x: buttonOrigin.x + buttonCenter, y: buttonOrigin.y)
-            if let screen = NSScreen.screens.first(where: { $0.frame.contains(buttonPoint) }) ?? NSScreen.main {
-                if x + popup.contentView!.intrinsicContentSize.width > screen.frame.maxX {
-                    x = screen.frame.maxX - popup.contentView!.intrinsicContentSize.width - 3
+            popup.presentWhenReady {
+                guard let contentView = popup.contentView else { return }
+                contentView.invalidateIntrinsicContentSize()
+
+                let windowCenter = contentView.intrinsicContentSize.width / 2
+                var x = buttonOrigin.x - windowCenter + buttonCenter
+                let y = buttonOrigin.y - contentView.intrinsicContentSize.height - 3
+
+                let buttonPoint = NSPoint(x: buttonOrigin.x + buttonCenter, y: buttonOrigin.y)
+                if let screen = NSScreen.screens.first(where: { $0.frame.contains(buttonPoint) }) ?? NSScreen.main {
+                    if x + contentView.intrinsicContentSize.width > screen.frame.maxX {
+                        x = screen.frame.maxX - contentView.intrinsicContentSize.width - 3
+                    }
+                    if x < screen.frame.minX {
+                        x = screen.frame.minX + 3
+                    }
                 }
-                if x < screen.frame.minX {
-                    x = screen.frame.minX + 3
-                }
+
+                popup.setFrameOrigin(NSPoint(x: x, y: y))
+                popup.setIsVisible(true)
             }
-            
-            popup.setFrameOrigin(NSPoint(x: x, y: y))
-            popup.setIsVisible(true)
         } else {
             popup.locked = false
             popup.openedBy = nil

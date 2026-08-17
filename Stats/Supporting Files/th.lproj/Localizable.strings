@@ -157,6 +157,7 @@
 "Check for update" = "ตรวจสอบการอัพเดท";
 "Show icon in dock" = "แสดงไอคอนใน dock";
 "Start at login" = "เริ่มต้นเมื่อเข้าสู่ระบบ";
+"Liquid Glass" = "กระจกเหลว";
 "Build number" = "หมายเลข Build";
 "Import settings" = "นำเข้าการตั้งค่า"; // translategemma:4b
 "Export settings" = "ส่งออกการตั้งค่า"; // gemma4:31b
