@@ -52,6 +52,8 @@
 		<dict>
 			<key>Default</key>
 			<false/>
+			<key>Split value</key>
+			<true/>
 			<key>Preview</key>
 			<dict>
 				<key>Value</key>

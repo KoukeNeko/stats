@@ -15,6 +15,8 @@ public class BarChart: WidgetWrapper {
     private var labelState: Bool = false
     private var boxState: Bool = true
     private var frameState: Bool = false
+    private var splitValueAvailable: Bool = false
+    private var splitValueState: Bool = false
     public var colorState: SColor = .systemAccent
     private var colors: [SColor] = SColor.allCases
     
@@ -51,6 +53,9 @@ public class BarChart: WidgetWrapper {
             if let box = configuration["Box"] as? Bool {
                 self.boxState = box
             }
+            if let splitValue = config!["Split value"] as? Bool {
+                self.splitValueAvailable = splitValue
+            }
             if let unsupportedColors = configuration["Unsupported colors"] as? [String] {
                 self.colors = self.colors.filter{ !unsupportedColors.contains($0.key) }
             }
@@ -75,6 +80,7 @@ public class BarChart: WidgetWrapper {
             self.frameState = Store.shared.bool(key: "\(self.title)_\(self.type.rawValue)_frame", defaultValue: self.frameState)
             self.labelState = Store.shared.bool(key: "\(self.title)_\(self.type.rawValue)_label", defaultValue: self.labelState)
             self.colorState = SColor.fromString(Store.shared.string(key: "\(self.title)_\(self.type.rawValue)_color", defaultValue: self.colorState.key))
+            self.splitValueState = Store.shared.bool(key: "\(self.title)_splitValue", defaultValue: false)
         }
         
         if preview {
@@ -302,7 +308,7 @@ public class BarChart: WidgetWrapper {
         )
         self.frameSettingsView = frame
         
-        view.addArrangedSubview(PreferencesSection([
+        var rows = [
             PreferencesRow(localizedString("Label"), component: switchView(
                 action: #selector(self.toggleLabel),
                 state: self.labelState
@@ -314,7 +320,15 @@ public class BarChart: WidgetWrapper {
             )),
             PreferencesRow(localizedString("Box"), component: box),
             PreferencesRow(localizedString("Frame"), component: frame)
-        ]))
+        ]
+        if self.splitValueAvailable {
+            self.splitValueState = Store.shared.bool(key: "\(self.title)_splitValue", defaultValue: false)
+            rows.append(PreferencesRow(localizedString("Split the value (System/User)"), component: switchView(
+                action: #selector(self.toggleSplitValue),
+                state: self.splitValueState
+            )))
+        }
+        view.addArrangedSubview(PreferencesSection(rows))
         
         return view
     }
@@ -356,5 +370,9 @@ public class BarChart: WidgetWrapper {
         self.colorState = SColor.fromString(key, defaultValue: self.colorState)
         Store.shared.set(key: "\(self.title)_\(self.type.rawValue)_color", value: self.colorState.key)
         self.redraw()
+    }
+    @objc private func toggleSplitValue(_ sender: NSControl) {
+        self.splitValueState = controlState(sender)
+        Store.shared.set(key: "\(self.title)_splitValue", value: self.splitValueState)
     }
 }
