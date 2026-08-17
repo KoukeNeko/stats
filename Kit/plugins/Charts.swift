@@ -746,6 +746,384 @@ public class LineChartView: ChartView {
     }
 }
 
+private struct StackedLineValue {
+    let system: Double
+    let user: Double
+    let timestamp: Date
+
+    var total: Double { min(1, self.system + self.user) }
+}
+
+public class StackedLineChartView: ChartView {
+    private let dateFormatter = DateFormatter()
+
+    private var points: [StackedLineValue?]
+    private var head: Int = 0
+    private var systemColor: NSColor
+    private var userColor: NSColor
+    private var scale: Scale
+    private var fixedScale: Double
+    private var isTooltipEnabled: Bool = true
+    private var cursor: NSPoint? = nil
+    private var lastSlideAt: CFTimeInterval = 0
+
+    private var tooltipEnabledSnapshot: Bool {
+        self.read { self.isTooltipEnabled }
+    }
+
+    public init(
+        frame: NSRect = .zero,
+        num: Int,
+        systemColor: NSColor = .systemRed,
+        userColor: NSColor = .systemBlue,
+        scale: Scale = .none,
+        fixedScale: Double = 1,
+        animation: Bool = true
+    ) {
+        self.points = Array(repeating: nil, count: max(num, 2))
+        self.systemColor = systemColor
+        self.userColor = userColor
+        self.scale = scale
+        self.fixedScale = fixedScale
+
+        super.init(frame: frame, queueLabel: "eu.exelban.Stats.Charts.StackedLine")
+        self.animationEnabled = animation
+        self.dateFormatter.dateFormat = "dd/MM HH:mm:ss"
+        self.updateTrackingAreas()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    public override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        var points: [StackedLineValue?] = []
+        var systemColor: NSColor = .systemRed
+        var userColor: NSColor = .systemBlue
+        var scale: Scale = .none
+        var fixedScale: Double = 1
+        var isTooltipEnabled: Bool = true
+        self.read {
+            points = self.orderedPointsLocked()
+            systemColor = self.systemColor
+            userColor = self.userColor
+            scale = self.scale
+            fixedScale = self.fixedScale
+            isTooltipEnabled = self.isTooltipEnabled
+        }
+
+        guard let context = NSGraphicsContext.current?.cgContext,
+              points.count > 1,
+              self.frame.width > 0,
+              self.frame.height > 0 else { return }
+
+        context.setShouldAntialias(true)
+        let maxValue = points.compactMap { $0?.total }.max() ?? 0
+        let offset: CGFloat = 1 / (NSScreen.main?.backingScaleFactor ?? 1)
+        let height = self.frame.height - offset
+        let xRatio = self.frame.width / CGFloat(points.count - 1)
+
+        typealias Point = (value: StackedLineValue, user: CGPoint, total: CGPoint)
+        var segments: [[Point]] = []
+        var segment: [Point] = []
+        var pointList: [Point] = []
+
+        for (index, value) in points.enumerated() {
+            guard let value else {
+                if !segment.isEmpty {
+                    segments.append(segment)
+                    segment = []
+                }
+                continue
+            }
+
+            let x = CGFloat(index) * xRatio
+            let userY = scaleValue(
+                scale: scale,
+                value: value.user,
+                maxValue: maxValue,
+                zeroValue: 0.01,
+                maxHeight: height,
+                limit: fixedScale
+            )
+            let totalY = scaleValue(
+                scale: scale,
+                value: value.total,
+                maxValue: maxValue,
+                zeroValue: 0.01,
+                maxHeight: height,
+                limit: fixedScale
+            )
+            let point = Point(
+                value: value,
+                user: CGPoint(x: x, y: userY),
+                total: CGPoint(x: x, y: totalY)
+            )
+            segment.append(point)
+            pointList.append(point)
+        }
+        if !segment.isEmpty {
+            segments.append(segment)
+        }
+
+        let userGradient = NSGradient(colors: [
+            userColor.withAlphaComponent(0.25),
+            userColor.withAlphaComponent(0.75)
+        ])
+        let systemGradient = NSGradient(colors: [
+            systemColor.withAlphaComponent(0.35),
+            systemColor.withAlphaComponent(0.85)
+        ])
+
+        for segment in segments {
+            if segment.count == 1 {
+                let point = segment[0]
+                userColor.setFill()
+                NSBezierPath(ovalIn: NSRect(x: point.user.x-offset, y: point.user.y-offset, width: offset*2, height: offset*2)).fill()
+                systemColor.setFill()
+                NSBezierPath(ovalIn: NSRect(x: point.total.x-offset, y: point.total.y-offset, width: offset*2, height: offset*2)).fill()
+                continue
+            }
+
+            let userFill = NSBezierPath()
+            userFill.move(to: segment[0].user)
+            for point in segment.dropFirst() {
+                userFill.line(to: point.user)
+            }
+            userFill.line(to: CGPoint(x: segment[segment.count-1].user.x, y: 0))
+            userFill.line(to: CGPoint(x: segment[0].user.x, y: 0))
+            userFill.close()
+            if let userGradient {
+                userGradient.draw(in: userFill, angle: 90)
+            } else {
+                userColor.withAlphaComponent(0.75).setFill()
+                userFill.fill()
+            }
+
+            let systemFill = NSBezierPath()
+            systemFill.move(to: segment[0].total)
+            for point in segment.dropFirst() {
+                systemFill.line(to: point.total)
+            }
+            for point in segment.reversed() {
+                systemFill.line(to: point.user)
+            }
+            systemFill.close()
+            if let systemGradient {
+                systemGradient.draw(in: systemFill, angle: 90)
+            } else {
+                systemColor.withAlphaComponent(0.85).setFill()
+                systemFill.fill()
+            }
+
+            let userLine = NSBezierPath()
+            userLine.move(to: segment[0].user)
+            let totalLine = NSBezierPath()
+            totalLine.move(to: segment[0].total)
+            for point in segment.dropFirst() {
+                userLine.line(to: point.user)
+                totalLine.line(to: point.total)
+            }
+            userLine.lineWidth = offset
+            totalLine.lineWidth = offset
+            userColor.setStroke()
+            userLine.stroke()
+            systemColor.setStroke()
+            totalLine.stroke()
+        }
+
+        if isTooltipEnabled, let cursor = self.cursor, !pointList.isEmpty {
+            let nearest = pointList.min { abs($0.total.x-cursor.x) < abs($1.total.x-cursor.x) }
+            if let nearest {
+                let line = NSBezierPath()
+                line.setLineDash([4, 4], count: 2, phase: 0)
+                line.move(to: CGPoint(x: nearest.total.x, y: 0))
+                line.line(to: CGPoint(x: nearest.total.x, y: height))
+                line.lineWidth = offset
+                NSColor.tertiaryLabelColor.setStroke()
+                line.stroke()
+
+                let value = "\(localizedString("System")) \(Int(nearest.value.system*100))% · \(localizedString("User")) \(Int(nearest.value.user*100))%"
+                let tooltipWidth = min(
+                    self.frame.width,
+                    max(112, value.widthOfString(usingFont: NSFont.systemFont(ofSize: 12)) + 8)
+                )
+                let tooltipX = nearest.total.x + tooltipWidth + 4 > self.frame.width
+                    ? nearest.total.x - tooltipWidth - 4
+                    : nearest.total.x + 4
+                drawToolTip(
+                    self.frame,
+                    CGPoint(x: tooltipX, y: nearest.total.y+4),
+                    CGSize(width: tooltipWidth, height: height),
+                    value: value,
+                    subtitle: self.dateFormatter.string(from: nearest.value.timestamp)
+                )
+            }
+        }
+    }
+
+    public func addValue(system: Double, user: Double) {
+        let value = StackedLineValue(
+            system: min(1, max(0, system)),
+            user: min(1, max(0, user)),
+            timestamp: Date()
+        )
+        self.write {
+            let count = self.points.count
+            guard count > 0 else { return }
+
+            if let stats = self.intervalStatsLocked() {
+                let gap = value.timestamp.timeIntervalSince(stats.lastTimestamp)
+                if gap >= 2, gap > stats.typicalInterval * 1.5 {
+                    let missing = min(Int((gap / stats.typicalInterval).rounded()) - 1, count - 1)
+                    for _ in 0..<max(0, missing) {
+                        self.points[self.head] = nil
+                        self.head = (self.head + 1) % count
+                    }
+                }
+            }
+
+            self.points[self.head] = value
+            self.head = (self.head + 1) % count
+        }
+        self.onMain { [weak self] in
+            guard let self, self.window?.isVisible ?? false else { return }
+            let count = self.read { self.points.count }
+            let dx = count > 1 ? self.bounds.width / CGFloat(count - 1) : 0
+            guard dx >= 1, self.animationsAllowed else {
+                self.needsDisplay = true
+                return
+            }
+            let now = CACurrentMediaTime()
+            let duration = self.lastSlideAt == 0 ? self.animationDuration : now - self.lastSlideAt
+            self.lastSlideAt = now
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            self.slideTransition(dx, duration: min(max(duration, 0.1), 1))
+            self.display()
+            CATransaction.commit()
+        }
+    }
+
+    public func reinit(_ num: Int = 60) {
+        self.write {
+            let num = max(num, 2)
+            guard self.points.count != num else { return }
+            let ordered = self.orderedPointsLocked()
+            if num < ordered.count {
+                self.points = Array(ordered.suffix(num))
+            } else {
+                var values: [StackedLineValue?] = Array(repeating: nil, count: num)
+                values.replaceSubrange((num-ordered.count)..<num, with: ordered)
+                self.points = values
+            }
+            self.head = 0
+        }
+        self.onMain { [weak self] in
+            self?.layer?.removeAnimation(forKey: "slide")
+            self?.displayIfVisible()
+        }
+    }
+
+    public func setScale(_ newScale: Scale, fixedScale: Double = 1) {
+        guard self.read({ self.scale != newScale || self.fixedScale != fixedScale }) else { return }
+        self.write {
+            self.scale = newScale
+            self.fixedScale = fixedScale
+        }
+        self.displayIfVisible()
+    }
+
+    public func setColors(system: NSColor, user: NSColor) {
+        self.write {
+            self.systemColor = system
+            self.userColor = user
+        }
+        self.displayIfVisible()
+    }
+
+    public func setTooltipEnabled(_ newValue: Bool) {
+        self.write { self.isTooltipEnabled = newValue }
+        self.updateTrackingAreas()
+    }
+
+    private func orderedPointsLocked() -> [StackedLineValue?] {
+        let count = self.points.count
+        guard count > 0 else { return [] }
+        var result: [StackedLineValue?] = []
+        result.reserveCapacity(count)
+        for index in 0..<count {
+            result.append(self.points[(self.head + index) % count])
+        }
+        return result
+    }
+
+    private func intervalStatsLocked() -> (lastTimestamp: Date, typicalInterval: TimeInterval)? {
+        var intervals: [TimeInterval] = []
+        var previous: Date?
+        var lastTimestamp: Date?
+        for value in self.orderedPointsLocked() {
+            if let value {
+                if let previous {
+                    let interval = value.timestamp.timeIntervalSince(previous)
+                    if interval > 0 { intervals.append(interval) }
+                }
+                previous = value.timestamp
+                lastTimestamp = value.timestamp
+            } else {
+                previous = nil
+            }
+        }
+        guard let lastTimestamp, intervals.count >= 2 else { return nil }
+        intervals.sort()
+        return (lastTimestamp, intervals[intervals.count / 2])
+    }
+
+    public override func updateTrackingAreas() {
+        self.trackingAreas.forEach({ self.removeTrackingArea($0) })
+        if self.tooltipEnabledSnapshot {
+            self.addTrackingArea(NSTrackingArea(
+                rect: .zero,
+                options: [.activeAlways, .mouseEnteredAndExited, .mouseMoved, .inVisibleRect],
+                owner: self,
+                userInfo: nil
+            ))
+        }
+        super.updateTrackingAreas()
+    }
+
+    public override func hitTest(_ point: NSPoint) -> NSView? {
+        guard self.tooltipEnabledSnapshot else { return nil }
+        return super.hitTest(point)
+    }
+
+    public override func mouseEntered(with event: NSEvent) {
+        guard self.tooltipEnabledSnapshot else { return }
+        self.cursor = convert(event.locationInWindow, from: nil)
+        self.needsDisplay = true
+    }
+
+    public override func mouseMoved(with event: NSEvent) {
+        guard self.tooltipEnabledSnapshot else { return }
+        self.cursor = convert(event.locationInWindow, from: nil)
+        self.needsDisplay = true
+    }
+
+    public override func mouseDragged(with event: NSEvent) {
+        guard self.tooltipEnabledSnapshot else { return }
+        self.cursor = convert(event.locationInWindow, from: nil)
+        self.needsDisplay = true
+    }
+
+    public override func mouseExited(with event: NSEvent) {
+        guard self.tooltipEnabledSnapshot else { return }
+        self.cursor = nil
+        self.needsDisplay = true
+    }
+}
+
 public class NetworkChartView: ChartView {
     private var base: DataSizeBase = .byte
     private var speedUnit: String = NetworkSpeedUnitAuto
@@ -1234,13 +1612,13 @@ public class GaugeChartView: ChartView {
 }
 
 public class ColumnChartView: ChartView {
-    private var values: [ColorValue] = []
+    private var values: [[ColorValue]] = []
     private var cursor: CGPoint? = nil
     
     public init(frame: NSRect = NSRect.zero, num: Int, animation: Bool = true) {
         super.init(frame: frame, queueLabel: "eu.exelban.Stats.Charts.Column")
         self.animationEnabled = animation
-        self.values = Array(repeating: ColorValue(0, color: .controlAccentColor), count: num)
+        self.values = Array(repeating: [ColorValue(0, color: .controlAccentColor)], count: num)
         
         self.addTrackingArea(NSTrackingArea(
             rect: CGRect(x: 0, y: 0, width: self.frame.width, height: self.frame.height),
@@ -1259,7 +1637,7 @@ public class ColumnChartView: ChartView {
     }
     
     public override func draw(_ dirtyRect: NSRect) {
-        var values: [ColorValue] = []
+        var values: [[ColorValue]] = []
         self.read {
             values = self.values
         }
@@ -1284,29 +1662,43 @@ public class ColumnChartView: ChartView {
             track.fill()
             track.close()
             
-            let value = values[i]
-            let color = value.color ?? .controlAccentColor
-            let h = min(max(0, CGFloat(value.value) * partitionSize.height), partitionSize.height)
+            let stack = values[i]
+            let total = min(1, stack.reduce(0) { $0 + max(0, $1.value) })
+            let h = min(max(0, CGFloat(total) * partitionSize.height), partitionSize.height)
             
             if h > 0 {
-                let fill = NSBezierPath(
+                let clip = NSBezierPath(
                     roundedRect: NSRect(x: x, y: 0, width: partitionSize.width, height: h),
                     xRadius: radius, yRadius: radius
                 )
-                if let gradient = NSGradient(colors: [
-                    color.withAlphaComponent(0.5),
-                    color.withAlphaComponent(1.0)
-                ]) {
-                    gradient.draw(in: fill, angle: 90)
-                } else {
-                    color.setFill()
-                    fill.fill()
+                NSGraphicsContext.saveGraphicsState()
+                clip.addClip()
+
+                var y: CGFloat = 0
+                for value in stack where value.value > 0 {
+                    let segmentHeight = min(
+                        CGFloat(value.value) * partitionSize.height,
+                        partitionSize.height - y
+                    )
+                    guard segmentHeight > 0 else { continue }
+                    let segment = NSRect(x: x, y: y, width: partitionSize.width, height: segmentHeight)
+                    let color = value.color ?? .controlAccentColor
+                    if let gradient = NSGradient(colors: [
+                        color.withAlphaComponent(0.5),
+                        color.withAlphaComponent(1.0)
+                    ]) {
+                        gradient.draw(in: segment, angle: 90)
+                    } else {
+                        color.setFill()
+                        NSBezierPath(rect: segment).fill()
+                    }
+                    y += segmentHeight
                 }
-                fill.close()
+                NSGraphicsContext.restoreGraphicsState()
             }
             
             x += partitionSize.width + spacing
-            list.append((value: value.value, path: track))
+            list.append((value: total, path: track))
         }
         
         if let p = self.cursor {
@@ -1324,6 +1716,10 @@ public class ColumnChartView: ChartView {
     }
     
     public func setValues(_ values: [ColorValue]) {
+        self.setValues(values.map { [$0] })
+    }
+
+    public func setValues(_ values: [[ColorValue]]) {
         self.write { self.values = values }
         self.fadeOrDisplay()
     }
