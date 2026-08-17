@@ -93,9 +93,11 @@ internal class Settings: NSStackView, Settings_v {
                 action: #selector(self.toggleUsagePerCore),
                 state: self.usagePerCoreState
             )
-            if self.usagePerCoreState || self.clustersGroupState {
+            if self.clustersGroupState {
                 self.splitValueView?.isEnabled = false
                 self.splitValueView?.state = .off
+                self.splitValueState = false
+                Store.shared.set(key: "\(self.title)_splitValue", value: self.splitValueState)
             }
             
             var rows: [PreferencesRow] = [
@@ -155,16 +157,12 @@ internal class Settings: NSStackView, Settings_v {
         self.callback()
         
         self.hyperthreadView?.isEnabled = self.usagePerCoreState
-        self.splitValueView?.isEnabled = !(self.usagePerCoreState || self.clustersGroupState)
+        self.splitValueView?.isEnabled = !self.clustersGroupState
         
         if !self.usagePerCoreState {
             self.hyperthreadState = false
             Store.shared.set(key: "\(self.title)_hyperhreading", value: self.hyperthreadState)
             self.hyperthreadView?.state = .off
-        } else {
-            self.splitValueState = false
-            Store.shared.set(key: "\(self.title)_splitValue", value: self.splitValueState)
-            self.splitValueView?.state = .off
         }
         
         if self.clustersGroupState && self.usagePerCoreState {
@@ -190,7 +188,13 @@ internal class Settings: NSStackView, Settings_v {
         self.clustersGroupState = controlState(sender)
         Store.shared.set(key: "\(self.title)_clustersGroup", value: self.clustersGroupState)
         
-        self.splitValueView?.isEnabled = !(self.usagePerCoreState || self.clustersGroupState)
+        self.splitValueView?.isEnabled = !self.clustersGroupState
+
+        if self.clustersGroupState {
+            self.splitValueState = false
+            Store.shared.set(key: "\(self.title)_splitValue", value: self.splitValueState)
+            self.splitValueView?.state = .off
+        }
         
         if self.clustersGroupState && self.usagePerCoreState {
             self.usagePerCoreView?.state = .off

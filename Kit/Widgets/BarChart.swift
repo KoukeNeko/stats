@@ -260,6 +260,31 @@ public class BarChart: WidgetWrapper {
             self.redraw()
         }
     }
+
+    public func resolvedColor(for value: Double) -> NSColor {
+        var boxState: Bool = true
+        var colorState: SColor = .systemAccent
+        var pressureLevel: RAMPressure = .normal
+        var colorZones: colorZones = (0.6, 0.8)
+        self.queue.sync {
+            boxState = self.boxState
+            colorState = self.colorState
+            pressureLevel = self._pressureLevel
+            colorZones = self._colorZones
+        }
+
+        switch colorState {
+        case .systemAccent: return .controlAccentColor
+        case .utilization: return value.usageColor(zones: colorZones, reversed: self.title == "Battery")
+        case .pressure: return pressureLevel.pressureColor()
+        case .monochrome:
+            if boxState {
+                return isDarkMode ? .black : .white
+            }
+            return isDarkMode ? .white : .black
+        default: return colorState.additional as? NSColor ?? .controlAccentColor
+        }
+    }
     
     // MARK: - Settings
     
