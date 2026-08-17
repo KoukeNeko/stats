@@ -15,16 +15,16 @@ public class TextWidget: WidgetWrapper {
     private var value: String = ""
     private static let variableRegex = try? NSRegularExpression(pattern: "(\\$[a-zA-Z0-9_]+)(?:\\.([a-zA-Z0-9_]+))?")
     
-    public init(title: String, preview: Bool = false) {
-        super.init(.text, title: title, frame: CGRect(
+    public init(type: widget_t = .text, title: String, preview: Bool = false, previewValue: String = "Text") {
+        super.init(type, title: title, frame: CGRect(
             x: 0,
             y: Constants.Widget.margin.y,
-            width: 30 + (2*Constants.Widget.margin.x),
+            width: (type == .flag ? 20 : 30) + (2*Constants.Widget.margin.x),
             height: Constants.Widget.height - (2*Constants.Widget.margin.y)
         ))
         
         if preview {
-            self.value = "Text"
+            self.value = previewValue
         }
         
         self.canDrawConcurrently = true
@@ -47,11 +47,14 @@ public class TextWidget: WidgetWrapper {
             return
         }
         
-        let valueSize: CGFloat = 12
+        let isFlag = self.type == .flag
+        let valueSize: CGFloat = isFlag ? 16 : 12
         let style = NSMutableParagraphStyle()
         style.alignment = .center
         let stringAttributes = [
-            NSAttributedString.Key.font: NSFont.systemFont(ofSize: valueSize, weight: .regular),
+            NSAttributedString.Key.font: isFlag ?
+                (NSFont(name: "Apple Color Emoji", size: valueSize) ?? NSFont.systemFont(ofSize: valueSize)) :
+                NSFont.systemFont(ofSize: valueSize, weight: .regular),
             NSAttributedString.Key.foregroundColor: NSColor.textColor,
             NSAttributedString.Key.paragraphStyle: style
         ]

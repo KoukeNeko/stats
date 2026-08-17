@@ -13,6 +13,19 @@ import XCTest
 import Kit
 
 class KitTests: XCTestCase {
+    func testCountryFlag() throws {
+        XCTAssertEqual(countryFlag("tw"), "🇹🇼")
+        XCTAssertEqual(countryFlag("UN"), "🇺🇳")
+        XCTAssertNil(countryFlag("USA"))
+        XCTAssertNil(countryFlag("1A"))
+    }
+
+    func testFlagWidgetUsesDedicatedType() throws {
+        let widget = TextWidget(type: .flag, title: "Network", preview: true, previewValue: "🇹🇼")
+
+        XCTAssertEqual(widget.type, .flag)
+    }
+
     func testIsNewestVersion_release() throws {
         XCTAssertFalse(isNewestVersion(currentVersion: "v2.11.0", latestVersion: "v2.11.0"))
         XCTAssertTrue(isNewestVersion(currentVersion: "v2.11.0", latestVersion: "v2.11.1"))

@@ -215,6 +215,7 @@
 "Tachometer widget" = "Drehzahlmesser"; // gemma4:31b
 "State widget" = "Status-Widget";
 "Text widget" = "Text-Widget";
+"Flag widget" = "Flaggen-Widget";
 "Battery details widget" = "Batteriedetails-Widget";
 "Show symbols" = "Symbole anzeigen";
 "Label widget" = "Beschriftung";

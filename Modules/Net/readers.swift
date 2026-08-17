@@ -580,6 +580,7 @@ internal class UsageReader: Reader<Network_Usage>, CWEventDelegate {
     @objc func refreshPublicIP() {
         self.usage.raddr.v4 = nil
         self.usage.raddr.v6 = nil
+        self.usage.raddr.countryCode = nil
         
         DispatchQueue.global(qos: .background).async {
             self.getPublicIP()

@@ -215,6 +215,7 @@
 "Tachometer widget" = "Тахометр";
 "State widget" = "Состояние";
 "Text widget" = "Текст";
+"Flag widget" = "Виджет флага";
 "Battery details widget" = "Виджет сведений о батарее";
 "Show symbols" = "Показать символы";
 "Label widget" = "Этикетка";

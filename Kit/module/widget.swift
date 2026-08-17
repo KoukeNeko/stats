@@ -27,6 +27,7 @@ public enum widget_t: String {
     case tachometer = "tachometer"
     case state = "state"
     case text = "text"
+    case flag = "flag"
     
     public func new(module: String, config: NSDictionary, defaultWidget: widget_t) -> SWidget? {
         guard let widgetConfig: NSDictionary = config[self.rawValue] as? NSDictionary else { return nil }
@@ -78,6 +79,9 @@ public enum widget_t: String {
         case .text:
             preview = TextWidget(title: module, preview: true)
             item = TextWidget(title: module, preview: false)
+        case .flag:
+            preview = TextWidget(type: .flag, title: module, preview: true, previewValue: countryFlag("UN") ?? "🏳️")
+            item = TextWidget(type: .flag, title: module, preview: false)
         default: break
         }
         
@@ -142,6 +146,7 @@ public enum widget_t: String {
         case .tachometer: return localizedString("Tachometer widget")
         case .state: return localizedString("State widget")
         case .text: return localizedString("Text widget")
+        case .flag: return localizedString("Flag widget")
         default: return ""
         }
     }
@@ -323,7 +328,10 @@ public class SWidget {
             self.enable()
         }
         
-        NotificationCenter.default.post(name: .toggleWidget, object: nil, userInfo: ["module": self.module])
+        NotificationCenter.default.post(name: .toggleWidget, object: nil, userInfo: [
+            "module": self.module,
+            "widget": self.type
+        ])
     }
     
     public func setMenuBarItem(state: Bool) {

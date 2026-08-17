@@ -227,6 +227,13 @@ public class Network: Module {
         self.settingsView.publicIPRefreshIntervalCallback = { [weak self] in
             self?.setIPUpdater()
         }
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(self.refreshPublicIPForFlagWidget),
+            name: .toggleWidget,
+            object: nil
+        )
         
         self.setReaders([self.usageReader, self.processReader, self.connectivityReader])
         
@@ -269,6 +276,10 @@ public class Network: Module {
             case let widget as SpeedWidget: widget.setValue(input: download, output: upload)
             case let widget as NetworkChart: widget.setValue(upload: Double(upload), download: Double(download))
             case let widget as TextWidget:
+                if w.type == .flag {
+                    widget.setValue(value.raddr.countryCode.flatMap(countryFlag) ?? "")
+                    break
+                }
                 var text = self.textValue
                 let pairs = TextWidget.parseText(text)
                 pairs.forEach { pair in
@@ -367,6 +378,13 @@ public class Network: Module {
             default: break
             }
         }
+    }
+
+    @objc private func refreshPublicIPForFlagWidget(_ notification: Notification) {
+        guard notification.userInfo?["module"] as? String == self.name,
+              notification.userInfo?["widget"] as? widget_t == .flag,
+              self.menuBar.widgets.contains(where: { $0.type == .flag && $0.isActive }) else { return }
+        NotificationCenter.default.post(name: .refreshPublicIP, object: nil, userInfo: nil)
     }
     
     private func setIPUpdater() {

@@ -215,6 +215,7 @@
 "Tachometer widget" = "Varvräknare";
 "State widget" = "Statwidget";
 "Text widget" = "Textwidget"; // translategemma:4b
+"Flag widget" = "Flaggwidget";
 "Battery details widget" = "Widget för batteridetaljer"; // gemma4:31b
 "Show symbols" = "Visa symboler";
 "Label widget" = "Etikett";

@@ -215,6 +215,7 @@
 "Tachometer widget" = "Ταχύμετρο";
 "State widget" = "Στοιχείο κατάστασης"; // gemma4:31b
 "Text widget" = "Widget κειμένου"; // translategemma:4b
+"Flag widget" = "Γραφικό στοιχείο σημαίας";
 "Battery details widget" = "Στοιχείο λεπτομερειών μπαταρίας"; // gemma4:31b
 "Show symbols" = "Εμφάνιση συμβόλων";
 "Label widget" = "Ετικέτα";

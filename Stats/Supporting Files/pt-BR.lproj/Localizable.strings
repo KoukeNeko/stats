@@ -215,6 +215,7 @@
 "Tachometer widget" = "Tacômetro";
 "State widget" = "Estado";
 "Text widget" = "Widget de texto"; // gemma4:31b
+"Flag widget" = "Widget de bandeira";
 "Battery details widget" = "Widget de detalhes da bateria"; // translategemma:4b
 "Show symbols" = "Mostrar símbolos";
 "Label widget" = "Rótulo";

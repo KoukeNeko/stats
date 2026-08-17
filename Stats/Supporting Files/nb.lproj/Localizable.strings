@@ -215,6 +215,7 @@
 "Tachometer widget" = "Turteller"; // gemma4:31b
 "State widget" = "Tilstandsdiagram";
 "Text widget" = "Tekstwidget"; // gemma4:31b
+"Flag widget" = "Flagg-widget";
 "Battery details widget" = "Batteridetaljer-widget"; // gemma4:31b
 "Show symbols" = "Vis symboler";
 "Label widget" = "Merkelapp";

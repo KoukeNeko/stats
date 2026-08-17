@@ -2231,7 +2231,7 @@ public func isWidgetActive(_ defaults: UserDefaults?, _ widgets: [String]) -> Bo
 
 public func countryFlag(_ code: String) -> String? {
     let uppercased = code.uppercased()
-    guard uppercased.count == 2 else { return nil }
+    guard uppercased.utf8.count == 2, uppercased.utf8.allSatisfy({ (65...90).contains($0) }) else { return nil }
     let scalars = uppercased.unicodeScalars.compactMap { UnicodeScalar(127397 + $0.value) }
     return scalars.count == 2 ? String(String.UnicodeScalarView(scalars)) : nil
 }

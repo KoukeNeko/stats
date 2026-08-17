@@ -215,6 +215,7 @@
 "Tachometer widget" = "Tachometri";
 "State widget" = "Tila";
 "Text widget" = "Tekstiwidgetti"; // gemma4:31b
+"Flag widget" = "Lippuwidget";
 "Battery details widget" = "Akun tiedot -widget"; // translategemma:4b
 "Show symbols" = "Näytä symbolit";
 "Label widget" = "Tunniste";

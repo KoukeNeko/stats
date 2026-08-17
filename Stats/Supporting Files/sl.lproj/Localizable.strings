@@ -215,6 +215,7 @@
 "Tachometer widget" = "Tahometer";
 "State widget" = "Pripomoček stanja";
 "Text widget" = "Besedilni vidžet"; // gemma4:31b
+"Flag widget" = "Pripomoček za zastavo";
 "Battery details widget" = "Vidžet podrobnosti baterije"; // gemma4:31b
 "Show symbols" = "Prikaži simbole";
 "Label widget" = "Oznaka";
